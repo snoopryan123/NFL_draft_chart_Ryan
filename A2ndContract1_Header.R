@@ -205,7 +205,58 @@ if (SCRAPE_COMPENSATION_DATA | !file.exists(filename_data_compensation)) {
 }
 print(compensation_1C)
 
+#################################
+### Jimmy Johnson Draft Chart ###
+#################################
 
+# SCRAPE_JJ_DATA = TRUE
+SCRAPE_JJ_DATA = FALSE
+filename_data_JJ = "data_JJ.csv"
+
+if (SCRAPE_JJ_DATA | !file.exists(filename_data_JJ)) {
+  
+  raw_jj_0 <- 
+    read_html("https://www.drafttek.com/NFL-Trade-Value-Chart.asp") %>%
+    html_table() %>%
+    pluck(2) %>%
+    janitor::clean_names() 
+  raw_jj_0
+  
+  raw_jj_1 = 
+    raw_jj_0 %>%
+    select(x2, x4, x6, x8, x10, x12, x14) %>%
+    filter(!(is.na(x2) & is.na(x4) & is.na(x6) & 
+           is.na(x8) & is.na(x10) & is.na(x12) & is.na(x14)))
+  raw_jj_1
+  
+  raw_jj_2 = do.call(c, c(raw_jj))
+  raw_jj_2
+  
+  raw_jj_3 = unname(raw_jj_2[!is.na(raw_jj_2)])
+  raw_jj_3
+  
+  df_jj = 
+    tibble(value_jj = raw_jj_3) %>%
+    mutate(
+      draft_pick = 1:n(),
+      jj_v1 = value_jj/first(value_jj),
+    ) %>%
+    relocate(draft_pick, .before=value_jj)
+  df_jj
+  
+  ### save data
+  write_csv(df_jj, filename_data_JJ) 
+} else {
+  df_jj = read_csv(filename_data_JJ, show_col_types = F) 
+}
+print(df_jj)
+
+########################################
+### Weibull Trade Market Draft Chart ###
+########################################
+
+df_trade_market_weibull = read_csv("df_market_curves_weibull.csv", show_col_types = F)
+print(df_trade_market_weibull)
 
 
 

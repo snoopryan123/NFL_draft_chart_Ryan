@@ -776,23 +776,28 @@ df_plot_V_S %>%
   # scale_color_brewer(name="V(x) = E[S(Y)|x]", palette = "Set1") +
   scale_color_brewer(name=bquote(paste('V'['S']*'(x) = E[S(Y)|x]')), palette = "Set1") +
   ylab("value relative to first pick") +
+  xlab("draft pick") +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
-#FIXME
-# add JJ chart
-# add weibull chart
-# add surplus chart ?
-
-df_post_summary_perf_EV
 ### visualize V_S(x)
 df_plot_V_S_A = 
   bind_rows(
-    df_plot_V_S,
+    df_plot_V_S %>%
+      mutate(desc = paste0("V(x) = E[S(Y)|x]/E[S(Y)|x=1],\n", desc,"\n"))
+    ,
     df_post_summary_perf_EV %>% 
       select(draft_pick, compensation_v1) %>%
       rename(V_S1 = compensation_v1) %>%
       mutate(desc = "compensation")
+    ,
+    df_jj %>% rename(V_S1 = jj_v1) %>% mutate(desc = "JJ")
+    ,
+    df_trade_market_weibull %>%
+      filter(str_detect(m, "with\n")) %>%
+      rename(draft_pick = t, V_S1 = v_M) %>%
+      select(draft_pick, V_S1) %>%
+      mutate(desc = "weibull")
   )
 df_plot_V_S_A
 
@@ -801,8 +806,9 @@ df_plot_V_S_A %>%
   ggplot(aes(x=draft_pick, y = V_S1, color=desc)) +
   geom_line(linewidth=1) +
   # scale_color_brewer(name="V(x) = E[S(Y)|x]", palette = "Set1") +
-  scale_color_brewer(name=bquote(paste('V'['S']*'(x) = E[S(Y)|x]')), palette = "Set1") +
+  scale_color_brewer(name="", palette = "Set2") +
   ylab("value relative to first pick") +
+  xlab("draft pick") +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
