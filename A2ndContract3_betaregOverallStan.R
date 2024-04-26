@@ -230,8 +230,8 @@ df_plot_musdbp %>%
 df_post_summary_perf_EV = 
   df_post_summary_musd %>%
   left_join(df_new) %>%
-  select(draft_pick, all_of(contains("bust_prob")), all_of(contains("mu"))) %>%
-  pivot_longer(-draft_pick) %>%
+  select(i,draft_pick, all_of(contains("bust_prob")), all_of(contains("mu"))) %>%
+  pivot_longer(-c(i,draft_pick)) %>%
   filter(!str_detect(name, "1")) %>%
   mutate(
     quantity = str_remove_all(name, "L_|L1_|M_|M1_|U_|U1_"),
@@ -242,11 +242,12 @@ df_post_summary_perf_EV =
   mutate(
     perf_EV = bust_cutoff/2 + (1-bust_prob)*mu
   ) %>%
-  select(draft_pick ,letter, perf_EV) %>%
+  select(i, draft_pick ,letter, perf_EV) %>%
   group_by(letter) %>%
   mutate(perf_EV1 = perf_EV/first(perf_EV)) %>%
   ungroup() %>%
-  pivot_wider(names_from = "letter", values_from = c("perf_EV", "perf_EV1"))
+  pivot_wider(names_from = "letter", values_from = c("perf_EV", "perf_EV1")) %>%
+  left_join(compensation_1C)
 df_post_summary_perf_EV
 
 ### draft value curves using v(x) = mu(x)/mu(1)
@@ -261,13 +262,9 @@ df_post_summary_perf_EV %>%
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 ### surplus value curve
-df_plot_surplus = 
+df_plot_surplus =
   df_post_summary_perf_EV %>%
-  select(draft_pick, perf_EV_M, perf_EV_L, perf_EV_U) %>%
-  left_join(
-    compensation_1C %>% select(draft_pick, rookie_contract_cap_pct)
-  ) %>%
-  # rename(compensation = compensation_v1, performance = M1_mu) %>%
+  select(draft_pick, perf_EV_M, perf_EV_L, perf_EV_U, rookie_contract_cap_pct) %>%
   mutate(
     surplus_M = perf_EV_M - rookie_contract_cap_pct,
     surplus_L = perf_EV_L - rookie_contract_cap_pct,
@@ -275,7 +272,7 @@ df_plot_surplus =
   ) %>%
   rename(compensation_M = rookie_contract_cap_pct)
 df_plot_surplus
-df_plot_surplus_1 = 
+df_plot_surplus_1 =
   df_plot_surplus %>%
   pivot_longer(-draft_pick) %>%
   mutate(
@@ -456,17 +453,13 @@ get_tail_prob_df <- function(q) {
 # bind_rows(lapply(c(0.08, 0.12), get_tail_prob_df))
 df_post_summary_tail_prob_0 = bind_rows(lapply(q_grid, get_tail_prob_df))
 df_post_summary_tail_prob_0
-df_post_summary_tail_prob_1 = 
+df_post_summary_tail_prob = 
   left_join(
     df_post_summary_tail_prob_0,
-    df_plot_musdbp %>% select(draft_pick,i,all_of(contains("mu")))
-  ) %>%
-  left_join(
-    compensation_1C %>% select(draft_pick, compensation_v1)
-  )
-df_post_summary_tail_prob_1
-df_post_summary_tail_prob = df_post_summary_tail_prob_1 %>% left_join(df_new)
-df_post_summary_tail_prob
+    df_post_summary_perf_EV %>% 
+      select(i,draft_pick,all_of(starts_with("perf_EV1")),compensation_v1)
+  ) 
+df_post_summary_tail_prob 
 
 ### draft value curves using v_q(x) = P(y>q|x)
 
@@ -498,7 +491,7 @@ df_post_summary_tail_prob %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x = draft_pick, y = tail_prob_1_M, color=factor(q))) +
   geom_line(linewidth=1) +
-  geom_line(aes(y = M1_mu), color="black", linetype="dashed", linewidth=1) +
+  geom_line(aes(y = perf_EV1_M,), color="black", linetype="dashed", linewidth=1) +
   geom_line(aes(y = compensation_v1), color="black", linetype="dashed", linewidth=1) +
   xlab("draft pick") +
   ylab("value relative to first pick") +
@@ -554,9 +547,9 @@ df_plot_surplus_tail_prob_1 %>%
   # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
-############################################################
-### S `success` function value curves V_S(x) = E[S(Y)|x] ###
-############################################################
+##########################
+### S `success` curves ###
+##########################
 
 ### the step success function
 S_step_func <- function(q) {
@@ -639,6 +632,10 @@ tibble(x = seq(0,0.30,length.out=1000)) %>%
     fun = function(y) y, 
     colour = "black", geom = "point"
   )
+
+############################################################
+### S `success` function value curves V_S(x) = E[S(Y)|x] ###
+############################################################
 
 ### posterior summary of beta shape parameters and bust probability
 df_post_summary_shapeparams = 
@@ -786,6 +783,28 @@ df_plot_V_S %>%
 # add JJ chart
 # add weibull chart
 # add surplus chart ?
+
+df_post_summary_perf_EV
+### visualize V_S(x)
+df_plot_V_S_A = 
+  bind_rows(
+    df_plot_V_S,
+    df_post_summary_perf_EV %>% 
+      select(draft_pick, compensation_v1) %>%
+      rename(V_S1 = compensation_v1) %>%
+      mutate(desc = "compensation")
+  )
+df_plot_V_S_A
+
+df_plot_V_S_A %>%
+  filter(draft_pick < 255) %>%
+  ggplot(aes(x=draft_pick, y = V_S1, color=desc)) +
+  geom_line(linewidth=1) +
+  # scale_color_brewer(name="V(x) = E[S(Y)|x]", palette = "Set1") +
+  scale_color_brewer(name=bquote(paste('V'['S']*'(x) = E[S(Y)|x]')), palette = "Set1") +
+  ylab("value relative to first pick") +
+  scale_y_continuous(limits=c(0,1)) +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 
 
