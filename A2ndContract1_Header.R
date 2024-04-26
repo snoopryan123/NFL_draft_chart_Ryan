@@ -20,6 +20,7 @@ theme_set(theme_bw())
 theme_update(
   text = element_text(size=20),
   plot.title = element_text(hjust = 0.5, size=20),
+  plot.subtitle = element_text(size=15),
   axis.title = element_text(size=20),
   axis.text = element_text(size=20),
   legend.text = element_text(size=20),

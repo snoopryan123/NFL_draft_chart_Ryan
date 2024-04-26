@@ -1,4 +1,10 @@
 
+###### STAN BAYSEIAN bust_spike + beta regression model of P(y|x)
+
+##################
+### load stuff ###
+##################
+
 ### load stan stuff
 library(rstan)
 rstan_options(auto_write = TRUE)
@@ -8,9 +14,9 @@ NUM_ITS = 2500
 ### load header
 source("A2ndContract1_Header.R")
 
-##################################################################
-### STAN BAYSEIAN bust_spike + beta regression model of P(y|x) ###
-##################################################################
+############################
+### train the Stan model ###
+############################
 
 ### training dataframe
 df_train =
@@ -86,6 +92,10 @@ if (TRAIN_ME | !file.exists(model_filename)) {
 }
 model_fit
 
+#############################
+### get posterior samples ###
+#############################
+
 ### posterior summary
 post_summary_vals = summary(model_fit)$summary
 df_post_vals =
@@ -122,6 +132,10 @@ df_post_draws =
     sd = sqrt(mu*(1-mu)/(1+phi))
   )
 df_post_draws
+
+##################################################################
+### visualize mu(x), sd(x), bp(x) of our beta regression model ###
+##################################################################
 
 ### posterior summary of mu and sd
 df_post_summary_musd = 
@@ -180,7 +194,10 @@ df_plot_musdbp %>%
   geom_ribbon(aes(ymin = L_mu, ymax = U_mu), fill="gray80") +
   geom_line(aes(y = M_mu), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
-  labs(title = "conditional mean \U03BC(x)") +
+  labs(
+    title = "conditional mean \U03BC(x) = E[Y|x]",
+    subtitle="given not a bust"
+  ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 df_plot_musdbp %>%
@@ -189,7 +206,10 @@ df_plot_musdbp %>%
   geom_ribbon(aes(ymin = L_sd, ymax = U_sd), fill="gray80") +
   geom_line(aes(y = M_sd), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
-  labs(title = "conditional standard deviation sd(x)") +
+  labs(
+    title = "conditional standard deviation sd(x)",
+    subtitle="given not a bust"
+  ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 df_plot_musdbp %>%
@@ -202,10 +222,38 @@ df_plot_musdbp %>%
   labs(title = "conditional bust probability bp(x)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
+################################################
+### performance value & surplus value curves ###
+################################################
+
+### EV performance value curve
+df_post_summary_perf_EV = 
+  df_post_summary_musd %>%
+  left_join(df_new) %>%
+  select(draft_pick, all_of(contains("bust_prob")), all_of(contains("mu"))) %>%
+  pivot_longer(-draft_pick) %>%
+  filter(!str_detect(name, "1")) %>%
+  mutate(
+    quantity = str_remove_all(name, "L_|L1_|M_|M1_|U_|U1_"),
+    letter = str_sub(name,1,1),
+  ) %>%
+  select(-name) %>%
+  pivot_wider(names_from = "quantity", values_from="value") %>%
+  mutate(
+    perf_EV = bust_cutoff/2 + (1-bust_prob)*mu
+  ) %>%
+  select(draft_pick ,letter, perf_EV) %>%
+  group_by(letter) %>%
+  mutate(perf_EV1 = perf_EV/first(perf_EV)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "letter", values_from = c("perf_EV", "perf_EV1"))
+df_post_summary_perf_EV
+
 ### draft value curves using v(x) = mu(x)/mu(1)
-df_plot_musdbp %>%
-  ggplot(aes(x = draft_pick, y = M1_mu)) +
-  geom_ribbon(aes(ymin = L1_mu, ymax = U1_mu), fill="gray80") +
+df_post_summary_perf_EV %>%
+  filter(draft_pick < 255) %>%
+  ggplot(aes(x = draft_pick, y = perf_EV1_M)) +
+  geom_ribbon(aes(ymin = perf_EV1_L, ymax = perf_EV1_U), fill="gray80") +
   geom_line(linewidth=1) +
   xlab("draft pick") +
   ylab("value relative to first pick") +
@@ -214,33 +262,41 @@ df_plot_musdbp %>%
 
 ### surplus value curve
 df_plot_surplus = 
-  df_plot_musdbp %>%
-  select(draft_pick, M1_mu, L1_mu, U1_mu) %>%
-  left_join(compensation_1C %>% 
-              select(draft_pick, compensation_v1)) %>%
+  df_post_summary_perf_EV %>%
+  select(draft_pick, perf_EV_M, perf_EV_L, perf_EV_U) %>%
+  left_join(
+    compensation_1C %>% select(draft_pick, rookie_contract_cap_pct)
+  ) %>%
   # rename(compensation = compensation_v1, performance = M1_mu) %>%
   mutate(
-    M1_surplus = M1_mu - compensation_v1,
-    L1_surplus = L1_mu - compensation_v1,
-    U1_surplus = U1_mu - compensation_v1,
+    surplus_M = perf_EV_M - rookie_contract_cap_pct,
+    surplus_L = perf_EV_L - rookie_contract_cap_pct,
+    surplus_U = perf_EV_U - rookie_contract_cap_pct,
   ) %>%
-  rename(M1_compensation = compensation_v1)
+  rename(compensation_M = rookie_contract_cap_pct)
 df_plot_surplus
 df_plot_surplus_1 = 
   df_plot_surplus %>%
   pivot_longer(-draft_pick) %>%
   mutate(
-    curve = str_remove_all(name, "M1_|U1_|L1_|_v1"),
-    letter = str_sub(name, 1, 1),
-    curve = ifelse(curve=="mu", "performance", curve),
+    curve = str_remove_all(name, "_M|_U|_L"),
+    letter = str_sub(name, nchar(name), nchar(name)),
+    curve = ifelse(curve=="perf_EV", "performance", curve),
   ) %>%
   select(-name) %>%
-  pivot_wider(names_from = "letter", values_from = "value")
+  pivot_wider(names_from = "letter", values_from = "value") %>%
+  group_by(curve) %>%
+  mutate(
+    M1 = M/first(M),
+    L1 = L/first(L),
+    U1 = U/first(U),
+  )
 df_plot_surplus_1
 df_plot_surplus_1 %>%
+  filter(draft_pick < 255) %>%
   ggplot(aes(x = draft_pick, color = curve, fill = curve)) +
-  geom_ribbon(aes(ymin=L, ymax=U), alpha=0.5) +
-  geom_line(aes(y=M), linewidth=1) +
+  geom_ribbon(aes(ymin=L1, ymax=U1), alpha=0.5) +
+  geom_line(aes(y=M1), linewidth=1) +
   xlab("draft pick") +
   scale_color_manual(
     name="", values=c("compensation"="firebrick", "performance"="dodgerblue2", "surplus"="forestgreen")
@@ -248,10 +304,13 @@ df_plot_surplus_1 %>%
   scale_fill_manual(
     name="", values=c("performance"="dodgerblue2", "surplus"="forestgreen")
   ) +
-  # scale_color_brewer(name="", palette = "Set1") +
   ylab("value relative to first pick") +
   # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+
+#########################################################
+### visualize conditional density P(y | x, not bust)  ###
+#########################################################
 
 ### posterior summary of the density
 y_grid = seq(0.005,0.25,length.out=100)
@@ -361,6 +420,10 @@ plot_func_betareg_overall_density(c(seq(65,80,by=1)),T,F)
 plot_func_betareg_overall_density(c(seq(81,112,by=2)),T,F)
 plot_func_betareg_overall_density(c(seq(113,32*7,by=8)),T,F)
 ###
+
+####################################################
+### tail probability P(y>q|x) draft value curves ###
+####################################################
 
 ### posterior summary of tail probability
 q_grid = c(seq(0.05, 0.15, by=0.01), 0.175, 0.20)
@@ -491,7 +554,9 @@ df_plot_surplus_tail_prob_1 %>%
   # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
-### S `success` function
+############################################################
+### S `success` function value curves V_S(x) = E[S(Y)|x] ###
+############################################################
 
 ### the step success function
 S_step_func <- function(q) {
@@ -510,7 +575,6 @@ plot_S_step <- function(q) {
     theme(
       plot.subtitle = element_text(size=15),
     ) +
-    labs(title="step success function") +
     stat_function(
       fun = S_step_func(q), 
       colour = "black", geom = "point"
@@ -560,6 +624,22 @@ plot_S_Scurve(a=5,b=60)
 # quantile(players_2C$apy_cap_pct_2C, 
 #          c(0.5, 0.74, 0.9, 0.95, 0.98))
 
+### plot the linear success function
+tibble(x = seq(0,0.30,length.out=1000)) %>%
+  ggplot(aes(x=x)) +
+  xlab("y") + ylab("S") +
+  labs(
+    title="linear success function",
+    subtitle = paste0("S(y) = y")
+  ) +
+  theme(
+    plot.subtitle = element_text(size=15),
+  ) +
+  stat_function(
+    fun = function(y) y, 
+    colour = "black", geom = "point"
+  )
+
 ### posterior summary of beta shape parameters and bust probability
 df_post_summary_shapeparams = 
   df_post_summary_musd %>%
@@ -570,13 +650,15 @@ df_post_summary_shapeparams
 ### S(y)•f(y|x)
 S_times_density <- function(bust_prob, shape1, shape2, S_func) {
   function(y) {
-    S_func(y)*(1-bust_prob)*dbeta(y,shape1,shape2)
+    # density_y = (1-bust_prob)*dbeta(y,shape1,shape2)
+    density_y =  ifelse(
+      y > bust_cutoff,
+      (1-bust_prob)*dbeta(y,shape1,shape2),
+      bust_prob/bust_cutoff
+    )
+    S_func(y)*density_y
   }
 }
-
-
-#FIXME
-# add integral of S function
 
 ### get dataframe of V_S(x) = E[S(Y)|x] = ∫ s(y)•f(y|x) dy
 ### over each value of x
@@ -586,10 +668,13 @@ get_df_V_S <- function(S_func, desc="") {
     dfx = df_post_summary_shapeparams %>% filter(draft_pick == x)
     dfx
     integrand_x = S_times_density(
-      bust_prob=dfx$M_bust_prob, shape1=dfx$M_shape1, shape2=dfx$M_shape2, 
+      bust_prob=dfx$M_bust_prob, 
+      shape1=dfx$M_shape1, shape2=dfx$M_shape2, 
       S_func=S_func
     )
-    integrate(integrand_x, lower = 0, upper = 1)$value
+    int_ = integrate(integrand_x, lower = 0, upper = 1)
+    print(int_)
+    int_$value
   }
   df_V_S = tibble(draft_pick = 1:256)
   V_S_values = sapply(df_V_S$draft_pick, V_S)
@@ -598,6 +683,44 @@ get_df_V_S <- function(S_func, desc="") {
   df_V_S = df_V_S %>% mutate(desc = desc)
   df_V_S
 }
+
+### get V_S(x) for 1 function S(y) = 1
+df_V_S_1f = get_df_V_S(
+  S_func=function(y) { 1 },
+  desc=paste0("S(y) = 1")
+)
+df_V_S_1f
+### all values should be 1 (integrates to 1)
+mean(abs(df_V_S_1f$V_S))
+# max(abs(df_V_S_1f$V_S))
+# hist(df_V_S_1f$V_S)
+
+### get V_S(x) for identity function S(y) = y
+df_V_S_id = get_df_V_S(
+  S_func=function(y) { y }, 
+  desc=paste0("S(y) = y")
+)
+df_V_S_id
+
+### check that V_id(x) matches E(y|x)
+df_plot_S_id_perfv = 
+  bind_rows(
+    df_V_S_id %>% mutate(desc = paste0("\nE[S(Y)|x], ", desc, "\n"))
+    ,
+    df_post_summary_perf_EV %>%
+      select(draft_pick, perf_EV_M, perf_EV1_M) %>%
+      rename(V_S = perf_EV_M, V_S1 = perf_EV1_M) %>%
+      mutate(desc = "E[Y|x]")
+  ) 
+df_plot_S_id_perfv
+df_plot_S_id_perfv %>%
+  filter(draft_pick < 255) %>%
+  ggplot(aes(x=draft_pick, y = V_S1, color=desc)) +
+  geom_line(linewidth=1) +
+  scale_color_brewer(name="", palette = "Set1") +
+  ylab("value relative to first pick") +
+  scale_y_continuous(limits=c(0,1)) +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 ### get V_S(x) for step function S(y) = 1{y>q}
 q_ = 0.10
@@ -610,19 +733,19 @@ df_V_S_step
 
 ### check that V_S(x) matches P(y>q|x)
 df_V_S_step %>%
-  left_join(
+  mutate(desc = paste0("E[S(Y)|x],\n", desc,"\n")) %>%
+  bind_rows(
     df_post_summary_tail_prob %>%
       filter(q == q_) %>%
-      select(draft_pick, tail_prob_M, tail_prob_1_M)
+      select(draft_pick, tail_prob_M, tail_prob_1_M) %>%
+      rename(V_S = tail_prob_M, V_S1 = tail_prob_1_M) %>%
+      mutate(desc = paste0("P(Y>",q_,"|x)"))
   ) %>%
-  select(draft_pick, V_S1, tail_prob_1_M) %>%
-  rename(`value S step` = V_S1, `value tail prob` = tail_prob_1_M) %>%
-  pivot_longer(-draft_pick) %>%
-  ggplot(aes(x=draft_pick, y = value, color=name)) +
+  ggplot(aes(x=draft_pick, y = V_S1, color=desc)) +
   geom_line(linewidth=1) +
   scale_color_brewer(name="", palette = "Set1") +
   ylab("value relative to first pick") +
-  labs(title=paste0("q = ", q_)) +
+  scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 ### get V_S(x) for S curve function 
@@ -644,6 +767,7 @@ df_plot_V_S =
     df_V_S_Scurve_1,
     df_V_S_Scurve_2,
     df_V_S_step,
+    df_V_S_id
   ) %>%
   select(-V_S) 
 df_plot_V_S
@@ -655,33 +779,13 @@ df_plot_V_S %>%
   # scale_color_brewer(name="V(x) = E[S(Y)|x]", palette = "Set1") +
   scale_color_brewer(name=bquote(paste('V'['S']*'(x) = E[S(Y)|x]')), palette = "Set1") +
   ylab("value relative to first pick") +
-  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
-
-### visualize V_S(x)
-df_plot_V_S_A = 
-  bind_rows(
-    df_plot_V_S,
-    df_plot_surplus_1 %>%
-      filter(curve %in% c("performance", "compensation")) %>%
-      rename(desc=curve, V_S1 = M) %>%
-      select(-c(L,U)) %>% relocate(V_S1, .before=desc)
-    
-  )
-df_plot_V_S_A
-
-df_plot_V_S_A %>%
-  filter(draft_pick < 255) %>%
-  ggplot(aes(x=draft_pick, y = V_S1, color=desc)) +
-  geom_line(linewidth=1) +
-  # scale_color_brewer(name="V(x) = E[S(Y)|x]", palette = "Set1") +
-  scale_color_brewer(name=bquote(paste('V'['S']*'(x) = E[S(Y)|x]')), palette = "Set1") +
-  ylab("value relative to first pick") +
+  scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 #FIXME
 # add JJ chart
 # add weibull chart
-
+# add surplus chart ?
 
 
 
