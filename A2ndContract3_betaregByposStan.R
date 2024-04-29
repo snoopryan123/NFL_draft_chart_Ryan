@@ -138,7 +138,7 @@ df_post_vals =
 df_post_vals %>% filter( str_detect(name, "alpha|beta|gamma") )
 
 ### posterior intervals
-df_post_vals_0 = 
+df_post_vals_byPos_0 = 
   df_post_vals %>%
   filter(str_detect(name, "mu|phi|bust_prob")) %>%
   mutate(
@@ -154,36 +154,24 @@ df_post_vals_0 =
     shape2 = (1-mu)*phi,
     sd = sqrt(mu*(1-mu)/(1+phi))
   ) 
-df_post_vals_0
-df_post_vals_1 = 
-  df_post_vals_0 %>%
-  pivot_wider(names_from=quantity, values_from=-c("i","quantity")) 
-df_post_vals_1
+df_post_vals_byPos_0
 
-# ### posterior draws
-# post_draws_mat = as.matrix(model_fit)
-# dim(post_draws_mat)
-# df_post_draws_0 = 
-#   as.data.frame(post_draws_mat) %>%
-#   mutate(draw = 1:n()) %>%
-#   pivot_longer(-draw) %>%
-#   filter(str_detect(name, "mu|phi|bust_prob")) %>%
-#   mutate(
-#     param = str_remove_all(str_replace_all(str_remove_all(name, "_new"), "[0-9]*", ""), "\\[|\\]"),
-#     i = extract_numeric(name)
-#     # i = readr::parse_number(name)
-#   ) 
-# df_post_draws_0
-# df_post_draws = 
-#   df_post_draws_0 %>%
-#   select(-name) %>%
-#   pivot_wider(names_from="param", values_from=c("value")) %>%
-#   mutate(
-#     shape1 = mu*phi,
-#     shape2 = (1-mu)*phi,
-#     sd = sqrt(mu*(1-mu)/(1+phi))
-#   )
-# df_post_draws
+df_post_vals_byPos = 
+  df_post_vals_byPos_0 %>%
+  pivot_wider(names_from=quantity, values_from=-c("i","quantity")) %>%
+  left_join(df_new, by="i")
+df_post_vals_byPos
+
+df_post_vals_byQB = 
+  df_post_vals_byPos %>%
+  pivot_longer(-c(i,draft_pick,pos,pos_idx,QB)) %>%
+  group_by(draft_pick,QB,name) %>%
+  summarise(
+    value = mean(value),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(names_from = name, values_from = value)
+df_post_vals_byQB 
 
 ##################################################
 ### visualize mu(x,pos), sd(x,pos), bp(x,pos)  ###
@@ -269,7 +257,7 @@ ggsave("plots_byPos/plot_empWithCondBustProb_byPos.png", width=12, height=8)
 
 ###
 df_plot_musdbp_0 =
-  df_post_vals_0 %>%
+  df_post_vals_byPos_0 %>%
   pivot_longer(-c(i,quantity), names_to="param") %>%
   pivot_wider(names_from = quantity, values_from = value, names_prefix = "value_") %>%
   left_join(df_new, by="i") 
@@ -293,7 +281,6 @@ plot_condLines_byPos =
   xlab("draft pick") + ylab("probability") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 ggsave("plots_byPos/plot_condLines_byPos.png", width=18, height=5)
-
 
 ###
 plot_condLinesSE_byPos = 
@@ -334,7 +321,344 @@ ggsave("plots_byPos/plot_condLinesSE_byPos.png", width=18, height=5)
 #   xlab("draft pick") + ylab("probability") +
 #   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # ggsave("plots_byPos/plot_condLinesSE_byPos.png", width=18, height=5)
-# 
 
-#######
+###
+df_post_vals_byQB_0 = 
+  df_post_vals_byQB %>%
+  pivot_longer(-c(draft_pick, QB, ), names_to="param") %>%
+  mutate(
+    quantity = str_sub(param, nchar(param), nchar(param)),
+    param = str_remove_all(param, "_L|_M|_U")
+  ) %>%
+  pivot_wider(names_from = quantity, values_from = value, names_prefix = "value_")
+df_post_vals_byQB_0
+
+###
+plot_condLinesSE_byQB = 
+  df_post_vals_byQB_0 %>%
+  filter(param %in% c("mu", "sd", "bust_prob")) %>%
+  ggplot(aes(x=draft_pick, y=value_M, color=QB, fill=QB)) + 
+  geom_ribbon(aes(ymin = value_L, ymax = value_U), alpha=0.6) +
+  facet_wrap(~param, scales = "free_y") +
+  geom_line(aes(linetype=QB), linewidth=1) +
+  xlab("draft pick") + ylab("probability") +
+  scale_fill_brewer(palette = "Set1") +
+  scale_color_brewer(palette = "Set1") +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+ggsave("plots_byPos/plot_condLinesSE_byQB.png", width=18, height=5)
+
+#############################################################
+### visualize conditional density P(y | x, QB, not bust)  ###
+#############################################################
+
+### posterior summary of the density
+y_grid = seq(0.005,0.40,length.out=100)
+y_grid
+
+get_density_df_byQB <- function(y) {
+  print(paste0("computing density for y=",y))
+  df_post_vals_byQB %>% 
+    select(draft_pick, QB, all_of(starts_with("shape"))) %>% 
+    mutate(
+      y = y,
+      density_L = dbeta(y, shape1_L, shape2_L),
+      density_M = dbeta(y, shape1_M, shape2_M),
+      density_U = dbeta(y, shape1_U, shape2_U),
+    ) 
+}
+
+df_post_vals_byQB
+
+# bind_rows(lapply(c(0.005, 0.01), get_density_df_byQB))
+df_post_summary_density = bind_rows(lapply(y_grid, get_density_df_byQB))
+df_post_summary_density
+
+### plot posterior conditional density
+plot_post_density_rd1 = 
+  df_post_summary_density %>%
+  filter(draft_pick %in% c(seq(1,32,by=2))) %>%
+  ggplot(aes(x=y, color=factor(draft_pick))) +
+  geom_line(aes(y=density_M), linewidth=1) +
+  facet_wrap(~QB) +
+  xlab("apy cap pct") +
+  ylab("density") +
+  labs(title = "density (given not a bust)") +
+  scale_color_discrete(name = "draft pick") +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank()
+  ) 
+# plot_post_density_rd1
+ggsave("plots_byPos/plot_post_density_rd1_byQB.png", width=11, height=5)
+
+plot_post_density_rdsall = 
+  df_post_summary_density %>%
+  filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
+  ggplot(aes(x=y, color=factor(draft_pick))) +
+  geom_line(aes(y=density_M), linewidth=1) +
+  facet_wrap(~QB) +
+  xlab("apy cap pct") +
+  ylab("density") +
+  labs(title = "density (given not a bust)") +
+  scale_color_discrete(name = "draft pick") +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank()
+  ) 
+# plot_post_density_rdsall
+ggsave("plots_byPos/plot_post_density_rdsall_byQB.png", width=11, height=5)
+
+##################################################################
+### G `success` function value curves V_G(x,QB) = E[G(Y)|x,QB] ###
+##################################################################
+
+### the step success function
+G_step_func <- function(q) { function(y) { as.numeric(y>q) } }
+### the G curve success function
+G_Scurve_func <- function(a, b) { function(y) { pbeta(y, a, b) } }
+### S curve string description
+betaCdfStr <- function(a,b) { paste0("G(y) = S(\U003B1=",a,", \U03B2=",b,")(y)") }
+
+### posterior summary of beta shape parameters and bust probability
+df_post_summary_shapeparams_QB = 
+  df_post_vals_byQB %>%
+  select(draft_pick, QB, all_of(contains("shape")), all_of(contains("bust_prob"))) %>%
+  left_join(compensation_1C) %>%
+  select(-compensation_v1) %>%
+  rename(cost = rookie_contract_cap_pct) %>%
+  relocate(cost, .after = QB)
+df_post_summary_shapeparams_QB
+
+### G(y)•f(y|x) OR G(y-cost)•f(y|x)
+G_times_density <- function(bust_prob, shape1, shape2, cost, G_func, surplus=FALSE) {
+  function(y) {
+    density_y =  ifelse(
+      y > bust_cutoff,
+      (1-bust_prob)*dbeta(y,shape1,shape2),
+      bust_prob/bust_cutoff
+    )
+    if (surplus) {
+      G_func(y-cost)*density_y
+    } else {
+      G_func(y)*density_y
+    }
+  }
+}
+
+### get dataframe of V_G(x,QB) = E[G(Y)|x,QB] = ∫ G(y)•f(y|x,QB) dy
+### over each value of x,QB
+get_df_V_G_QB <- function(
+    G_func, desc="", surplus=FALSE
+) {
+  df_V_G = as_tibble(expand.grid(draft_pick = 1:256, QB=c("QB", "not QB")))
+  V_G <- function(j) {
+    # dfx = df_post_summary_shapeparams_QB %>% filter(draft_pick == x, QB == qb)
+    rowj = df_V_G[j,] ### j^th row
+    x = rowj$draft_pick[1]
+    qb = rowj$QB[1]
+    print(paste0("computing V_G(x,QB) for draft pick x = ", x,", QB = ", qb))
+    dfx = df_post_summary_shapeparams_QB %>% filter(draft_pick == x, QB == qb)
+    dfx
+    integrand_x = G_times_density(
+      bust_prob=dfx$bust_prob_M, 
+      shape1=dfx$shape1_M, shape2=dfx$shape2_M, 
+      cost = dfx$cost,
+      G_func=G_func,
+      surplus=surplus
+    )
+    int_ = integrate(integrand_x, lower = 0, upper = 1)
+    print(int_)
+    int_$value
+  }
+  V_G_values = sapply(1:nrow(df_V_G), V_G)
+  df_V_G$V_G = V_G_values
+  # browser()
+  QB_v1 = (df_V_G %>% filter(QB=="QB",draft_pick==1))$V_G
+  df_V_G = 
+    df_V_G %>% 
+    mutate(
+      V_G1 = V_G/QB_v1,
+      # V_G1 = V_G/first(V_G),
+      desc = desc,
+      surplus = surplus,
+    )
+  df_V_G
+}
+
+### get V_G(x) for 1 function G(y) = 1
+df_V_G_1f = get_df_V_G_QB(G_func=function(y) { 1 }, desc=paste0("G(y) = 1"))
+df_V_G_1f
+### all values should be 1 (integrates to 1)
+mean(abs(df_V_G_1f$V_G))
+
+### get V_G(x) for identity function G(y) = y
+df_V_G_id = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("G(y) = y"))
+df_V_G_id
+
+### get V_G(x) for step function G(y) = 1{y>r}
+q_ = 0.1
+df_V_G_step_1 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"))
+df_V_G_step_1
+q_ = 0.15
+df_V_G_step_2 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"))
+df_V_G_step_2
+q_ = 0.2
+df_V_G_step_3 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"))
+df_V_G_step_3
+
+### get V_G(x) for G curve function 
+get_df_V_G_Scurve <- function(a,b,surplus=FALSE) {
+  get_df_V_G_QB(
+    G_func=G_Scurve_func(a,b),
+    desc = betaCdfStr(a,b),
+    surplus = surplus
+  )
+}
+df_V_G_Scurve_1 = get_df_V_G_Scurve(a=6, b=35)
+df_V_G_Scurve_1
+df_V_G_Scurve_2 = get_df_V_G_Scurve(a=5, b=60)
+df_V_G_Scurve_2
+
+### visualize V_G(x)
+df_jj_1 = df_jj %>% rename(V_G1 = jj_v1) %>% mutate(desc = "Jimmy Johnson")
+df_plot_V_G = 
+  bind_rows(
+    df_V_G_step_1,
+    df_V_G_step_2,
+    df_V_G_step_3,
+    df_V_G_Scurve_1,
+    df_V_G_Scurve_2,
+    bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
+    df_V_G_id
+  ) #%>% select(-V_G) 
+df_plot_V_G
+
+###
+plot_VG = 
+  df_plot_V_G %>%
+  # filter(draft_pick < 255) %>%
+  ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
+  # ggplot(aes(x=draft_pick, y = V_G, color=desc)) +
+  facet_wrap(~QB) +
+  geom_line(linewidth=1) +
+  # scale_color_brewer(name="V(x) = E[G(Y)|x]", palette = "Set1") +
+  scale_color_brewer(name=bquote(paste('V'['G']*'(x) = E[G(Y)|x]')), palette = "Set2") +
+  xlab("draft pick") +
+  ylab("value relative to first QB pick") +
+  scale_y_continuous(limits=c(0,1)) +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_VG
+ggsave("plots_byPos/plot_G_valueCurves.png",width=15,height=5)
+
+###########################################
+### Accounting for cost: surplus curves ###
+###########################################
+
+### posterior conditional surplus density
+df_post_summary_density_surplus = 
+  df_post_summary_density %>%
+  left_join(compensation_1C) %>%
+  rename(cost = rookie_contract_cap_pct) %>%
+  mutate(s = y - cost) %>%
+  relocate(s, .after = y) %>%
+  relocate(cost, .after = s) %>%
+  select(-compensation_v1) %>%
+  arrange(draft_pick,y)
+df_post_summary_density_surplus
+
+### plot posterior conditional density
+plot_post_surplus_density_rd1 = 
+  df_post_summary_density_surplus %>%
+  filter(draft_pick %in% c(seq(1,32,by=2))) %>%
+  ggplot(aes(x=s, color=factor(draft_pick))) +
+  geom_line(aes(y=density_M), linewidth=1) +
+  facet_wrap(~QB) +
+  xlab("apy cap pct") +
+  ylab("density") +
+  labs(title = "surplus density (given not a bust)") +
+  scale_color_discrete(name = "draft pick") +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank()
+  ) 
+# plot_post_surplus_density_rd1
+ggsave("plots_byPos/plot_post_surplus_density_rd1_byQB.png", width=11, height=5)
+
+### plot posterior conditional density
+plot_post_surplus_density_rdsall = 
+  df_post_summary_density_surplus %>%
+  filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
+  ggplot(aes(x=s, color=factor(draft_pick))) +
+  geom_line(aes(y=density_M), linewidth=1) +
+  facet_wrap(~QB) +
+  xlab("apy cap pct") +
+  ylab("density") +
+  labs(title = "surplus density (given not a bust)") +
+  scale_color_discrete(name = "draft pick") +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank()
+  ) 
+ggsave("plots_byPos/plot_post_surplus_density_rdsall_byQB.png", width=11, height=5)
+
+### get V_G(x) for 1 function G(y) = 1
+df_V_G_1fs = get_df_V_G_QB(G_func=function(y) { 1 }, desc=paste0("G(y) = 1"), surplus=TRUE)
+df_V_G_1fs
+### all values should be 1 (integrates to 1)
+mean(abs(df_V_G_1fs$V_G))
+
+### get V_G(x) for identity function G(y) = y
+df_V_G_id_S = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("G(y) = y"), surplus=TRUE)
+df_V_G_id_S
+
+### get V_G(x) for step function G(y) = 1{y>r}
+q_ = 0.1
+df_V_G_step_1_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus=TRUE)
+df_V_G_step_1_S
+q_ = 0.15
+df_V_G_step_2_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus=TRUE)
+df_V_G_step_2_S
+q_ = 0.2
+df_V_G_step_3_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus=TRUE)
+df_V_G_step_3_S
+
+### get V_G(x) for G curve function 
+df_V_G_Scurve_1_S = get_df_V_G_Scurve(a=6, b=35, surplus=TRUE)
+df_V_G_Scurve_1_S
+df_V_G_Scurve_2_S = get_df_V_G_Scurve(a=5, b=60, surplus=TRUE)
+df_V_G_Scurve_2_S
+
+### visualize SV_G(x)
+df_plot_SV_G = 
+  bind_rows(
+    df_V_G_step_1_S,
+    df_V_G_step_2_S,
+    df_V_G_step_3_S,
+    df_V_G_Scurve_1_S,
+    df_V_G_Scurve_2_S,
+    bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
+    df_V_G_id_S
+  ) #%>% select(-V_G) 
+df_plot_SV_G
+
+###
+plot_SVG = 
+  df_plot_SV_G %>%
+  ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
+  # ggplot(aes(x=draft_pick, y = V_G, color=desc)) +
+  facet_wrap(~QB) +
+  geom_line(linewidth=1) +
+  # scale_color_brewer(name="V(x) = E[G(Y)|x]", palette = "Set1") +
+  scale_color_brewer(name=bquote(paste('SV'['G']*'(x) = E[G(Y-cost)|x]')), palette = "Set2") +
+  xlab("draft pick") +
+  ylab("surplus value relative to first QB pick") +
+  # scale_y_continuous(limits=c(0,1)) +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_VG
+ggsave("plots_byPos/plot_G_surplusValueCurves.png",width=15,height=5)
+
 

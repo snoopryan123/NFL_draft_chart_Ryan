@@ -612,7 +612,7 @@ df_post_summary_tail_prob %>%
 ###########################
 
 ### the step success function
-S_step_func <- function(q) {
+G_step_func <- function(q) {
   function(y) { as.numeric(y>q) }
 }
 
@@ -629,7 +629,7 @@ plot_G_step <- function(q) {
       plot.subtitle = element_text(size=15),
     ) +
     stat_function(
-      fun = S_step_func(q), 
+      fun = G_step_func(q), 
       colour = "black", geom = "point"
     )
 }
@@ -640,7 +640,7 @@ G_Scurve_func <- function(a, b) {
   function(y) { pbeta(y, a, b) }
 }
 
-### plot the G curve success function
+### S curve string description
 betaCdfStr <- function(a,b) { 
   # bquote(paste('G(y) = F'['Beta']*"(\U003B1=",.(a),", \U03B2=",.(b),")(y)"))
   # paste0("G(y) = betaCdf(\U003B1=",a,", \U03B2=",b,")(y)") 
@@ -832,7 +832,7 @@ df_plot_G_id_perfv %>%
 ### get V_G(x) for step function G(y) = 1{y>r}
 q_ = 0.10
 df_V_G_step = get_df_V_G(
-  G_func=S_step_func(q=q_), 
+  G_func=G_step_func(q=q_), 
   desc=paste0("G(y) = 1{y>",q_,"}")
   # desc=paste0("E[1{Y>",q_,"}|x]")
 )
@@ -1014,7 +1014,7 @@ mean(abs(df_V_G_1fs$V_G))
 ### get V_G(x) for various GM value functions G(y)
 q_ = 0.10
 df_V_G_step_S = get_df_V_G(
-  G_func=S_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus = TRUE
+  G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus = TRUE
 )
 df_V_G_step_S
 df_V_G_Scurve_1_S = get_df_V_G_Scurve(a=6, b=35, surplus = TRUE)
@@ -1096,5 +1096,5 @@ plot_V_G_S_A =
   # scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_V_G_S_A
-ggsave("plots_overall/plot_G_surplusValueCurves1.png",width=10,height=5)
+ggsave("plots_overall/plot_G_surplusValueCurves1.png",width=12,height=5)
 
