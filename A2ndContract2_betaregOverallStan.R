@@ -189,17 +189,18 @@ df_overall_emp_bust_prob =
 df_overall_emp_bust_prob
 
 ### empirical df
-df_overall_emp = left_join(df_overall_emp_musd_tail, df_overall_emp_bust_prob)
+df_overall_emp = full_join(df_overall_emp_musd_tail, df_overall_emp_bust_prob)
 df_overall_emp
 
 ### plot conditional mean mu(x) and standard deviation sd(x) and bust_prob(x)
 df_plot_musdbp = left_join(df_new, df_post_summary_musd) %>% left_join(df_overall_emp)
 df_plot_musdbp
 
-df_plot_musdbp %>%
+plot_empWithCondMean = 
+  df_plot_musdbp %>%
   ggplot(aes(x = draft_pick)) +
   geom_point(aes(y=emp_mean_tail)) +
-  geom_ribbon(aes(ymin = L_mu, ymax = U_mu), fill="gray80") +
+  geom_ribbon(aes(ymin = L_mu, ymax = U_mu), fill="gray60", alpha=0.6) +
   geom_line(aes(y = M_mu), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
   labs(
@@ -207,11 +208,13 @@ df_plot_musdbp %>%
     subtitle="given not a bust"
   ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_empWithCondMean
 
-df_plot_musdbp %>%
+plot_empWithCondSd = 
+  df_plot_musdbp %>%
   ggplot(aes(x = draft_pick)) +
   geom_point(aes(y=emp_sd_tail)) +
-  geom_ribbon(aes(ymin = L_sd, ymax = U_sd), fill="gray80") +
+  geom_ribbon(aes(ymin = L_sd, ymax = U_sd), fill="gray60", alpha=0.6) +
   geom_line(aes(y = M_sd), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
   labs(
@@ -219,16 +222,23 @@ df_plot_musdbp %>%
     subtitle="given not a bust"
   ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_empWithCondSd
 
-df_plot_musdbp %>%
+plot_empWithCondBp = 
+  df_plot_musdbp %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x = draft_pick)) +
   geom_point(aes(y=emp_bust_prob)) +
-  geom_ribbon(aes(ymin = L_bust_prob, ymax = U_bust_prob), fill="gray80") +
+  geom_ribbon(aes(ymin = L_bust_prob, ymax = U_bust_prob), fill="gray60", alpha=0.6) +
   geom_line(aes(y = M_bust_prob), linewidth=1) +
   xlab("draft pick") + ylab("probability") +
   labs(title = "conditional bust probability bp(x)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_empWithCondBp
+
+plot_empWithCondLines = plot_empWithCondMean + plot_empWithCondSd + plot_empWithCondBp
+# plot_empWithCondLines
+ggsave("plots_overall/plot_empWithCondLines.png", width=16, height=5)
 
 ################################################
 ### performance value & surplus value curves ###
@@ -314,6 +324,7 @@ plot_surplus_condMean =
   # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 plot_surplus_condMean
+ggsave("plots_overall/plot_surplus_condMean.png", width=8, height=5)
 
 #########################################################
 ### visualize conditional density P(y | x, not bust)  ###
@@ -347,21 +358,8 @@ df_post_summary_density = df_post_summary_density_0 %>% left_join(df_new)
 df_post_summary_density
 
 ### plot posterior conditional density
-df_post_summary_density %>%
-  filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
-  ggplot(aes(x=y, color=factor(draft_pick))) +
-  geom_line(aes(y=density_M), linewidth=1) +
-  xlab("apy cap pct") +
-  ylab("density") +
-  labs(title = "density (given not a bust)") +
-  scale_color_discrete(name = "draft pick") +
-  theme(
-    axis.text.x = element_text(size = 10),
-    axis.text.y=element_blank(),
-    axis.ticks.y=element_blank()
-  ) 
-
-df_post_summary_density %>%
+plot_post_density_rd1 = 
+  df_post_summary_density %>%
   filter(draft_pick %in% c(seq(1,32,by=2))) %>%
   ggplot(aes(x=y, color=factor(draft_pick))) +
   geom_line(aes(y=density_M), linewidth=1) +
@@ -374,9 +372,29 @@ df_post_summary_density %>%
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
+# plot_post_density_rd1
+ggsave("plots_overall/plot_post_density_rd1.png", width=7, height=5)
+
+plot_post_density_rdsall = 
+  df_post_summary_density %>%
+  filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
+  ggplot(aes(x=y, color=factor(draft_pick))) +
+  geom_line(aes(y=density_M), linewidth=1) +
+  xlab("apy cap pct") +
+  ylab("density") +
+  labs(title = "density (given not a bust)") +
+  scale_color_discrete(name = "draft pick") +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank()
+  ) 
+# plot_post_density_rdsall
+ggsave("plots_overall/plot_post_density_rdsall.png", width=7, height=5)
 
 ### plot posterior conditional density
-df_post_summary_density %>%
+plot_post_density_rdsall_SE = 
+  df_post_summary_density %>%
   filter(draft_pick %in% c(seq(1,32*7,by=32/1))) %>%
   ggplot(aes(x=y, color=factor(draft_pick), fill=factor(draft_pick))) +
   geom_line(aes(y=density_M), linewidth=1) +
@@ -391,10 +409,12 @@ df_post_summary_density %>%
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
+# plot_post_density_rdsall_SE
+ggsave("plots_overall/plot_post_density_rdsall_SE.png", width=7, height=5)
 
 ### plot posterior conditional density
 plot_func_betareg_overall_density <- 
-  function(ex_draft_picks, includeEmp=TRUE, includeErrorBars=TRUE) {
+  function(ex_draft_picks, includeEmp=TRUE, includeErrorBars=TRUE, saveMe=F) {
   p = 
     bind_rows(
       df_post_summary_density,
@@ -421,29 +441,37 @@ plot_func_betareg_overall_density <-
                         fill="darkslategray2", color="darkslategray2") 
   }
   p = p + geom_line(aes(x = y, y = density_M), linewidth=1) 
-  p
+  if (saveMe) {
+    # browser()
+    filepath = paste0("plots_overall/plot_density_byPick", 
+                      "_", paste0(ex_draft_picks, collapse="_"),
+                      if (includeEmp) "_emp" else "", 
+                      if (includeErrorBars) "_SE" else "", ".png"
+    )
+    ggsave(filepath, p, width = 10, height=10) 
+  } else {
+    return(p)
+  }
+  # p
 }
 
 ###
-plot_func_betareg_overall_density(c(seq(1,32*7,by=32/2)),F,F)
-plot_func_betareg_overall_density(c(seq(1,32*3,by=8), seq(32*3,32*5,by=16)),F,F)
-plot_func_betareg_overall_density(c(seq(1,32*2,by=32/8)),F,F)
-# plot_func_betareg_overall_density(c(seq(1,32*7,by=32/2)),F,T)
-# plot_func_betareg_overall_density(c(seq(1,32*3,by=8), seq(32*3,32*5,by=16)),F,T)
-# plot_func_betareg_overall_density(c(seq(1,32*2,by=32/8)),F,T)
+# plot_func_betareg_overall_density(c(seq(1,32*7,by=32/2)),F,F,F)
+# plot_func_betareg_overall_density(c(seq(1,32*3,by=8), seq(32*3,32*5,by=16)),F,F,F)
+# plot_func_betareg_overall_density(c(seq(1,32*2,by=32/8)),F,F,F)
 ###
-plot_func_betareg_overall_density(c(seq(1,16,by=1)),T,F)
-plot_func_betareg_overall_density(c(seq(17,32,by=1)),T,F)
-plot_func_betareg_overall_density(c(seq(33,48,by=1)),T,F)
-plot_func_betareg_overall_density(c(seq(49,64,by=1)),T,F)
+plot_func_betareg_overall_density(c(seq(1,16,by=1)),T,F,T)
+plot_func_betareg_overall_density(c(seq(17,32,by=1)),T,F,T)
+plot_func_betareg_overall_density(c(seq(33,48,by=1)),T,F,T)
+plot_func_betareg_overall_density(c(seq(49,64,by=1)),T,F,T)
 ###
-plot_func_betareg_overall_density(c(seq(65,80,by=1)),T,F)
-plot_func_betareg_overall_density(c(seq(81,112,by=2)),T,F)
-plot_func_betareg_overall_density(c(seq(113,32*7,by=8)),T,F)
+plot_func_betareg_overall_density(c(seq(65,80,by=1)),T,F,T)
+plot_func_betareg_overall_density(c(seq(81,112,by=2)),T,F,T)
+plot_func_betareg_overall_density(c(seq(113,32*7,by=8)),T,F,T)
 ###
 
 ####################################################
-### tail probability P(y>q|x) draft value curves ###
+### tail probability P(y>r|x) draft value curves ###
 ####################################################
 
 ### posterior summary of tail probability
@@ -485,30 +513,38 @@ df_post_summary_tail_prob =
   ) 
 df_post_summary_tail_prob 
 
-### draft value curves using v_q(x) = P(y>q|x)
+### draft value curves using v_q(x) = P(y>r|x)
 
 ### plot posterior tail probability
-df_post_summary_tail_prob %>%
+plot_tail_probs = 
+  df_post_summary_tail_prob %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x = draft_pick, y = tail_prob_M, color=factor(q))) +
   geom_line(linewidth=1) +
   xlab("draft pick") +
   ylab("probability") +
-  labs(title = "posterior mean tail probability P(y>q|x)") +
-  scale_color_discrete(name="q") +
+  labs(title = "posterior mean tail probability P(y>r|x)") +
+  scale_color_discrete(name="r") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_tail_probs
 
 ### plot posterior relative tail probability
-df_post_summary_tail_prob %>%
+plot_tail_probs_relative = 
+  df_post_summary_tail_prob %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x = draft_pick, y = tail_prob_1_M, color=factor(q))) +
   geom_line(linewidth=1) +
   xlab("draft pick") +
   ylab("value relative to first pick") +
-  labs(title = "posterior mean relative tail probability P(y>q|x)/P(y>q|x=1)") +
-  # labs(title = "tail probability P(y>q|x)/P(y>q|x=1)") +
-  scale_color_discrete(name="q") +
+  labs(title = "posterior mean relative tail probability P(y>r|x)/P(y>r|x=1)") +
+  # labs(title = "tail probability P(y>r|x)/P(y>r|x=1)") +
+  scale_color_discrete(name="r") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_tail_probs_relative
+
+ggsave("plots_overall/plot_tail_probs.png",
+       plot_tail_probs + plot_tail_probs_relative,
+       width=15, height=5)
 
 ### plot posterior relative tail probability with performance value curve
 df_post_summary_tail_prob %>%
@@ -519,57 +555,57 @@ df_post_summary_tail_prob %>%
   geom_line(aes(y = compensation_v1), color="black", linetype="dashed", linewidth=1) +
   xlab("draft pick") +
   ylab("value relative to first pick") +
-  labs(title = "posterior mean relative tail probability P(y>q|x)/P(y>q|x=1)") +
-  # labs(title = "tail probability P(y>q|x)/P(y>q|x=1)") +
-  scale_color_discrete(name="q") +
+  labs(title = "posterior mean relative tail probability P(y>r|x)/P(y>r|x=1)") +
+  # labs(title = "tail probability P(y>r|x)/P(y>r|x=1)") +
+  scale_color_discrete(name="r") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
-### surplus value tail probability curve
-table(df_post_summary_tail_prob$q)
-# q_ = 0.10
-# q_ = 0.15
-q_ = 0.175
-df_plot_surplus_tail_prob = 
-  df_post_summary_tail_prob %>%
-  filter(q == q_) %>%
-  select(draft_pick, compensation_v1,
-         tail_prob_1_M, tail_prob_1_L, tail_prob_1_U) %>%
-  mutate(
-    surplus_1_M = tail_prob_1_M - compensation_v1,
-    surplus_1_L = tail_prob_1_L - compensation_v1,
-    surplus_1_U = tail_prob_1_U - compensation_v1,
-  ) %>%
-  rename(compensation_1_M  = compensation_v1)
-df_plot_surplus_tail_prob
-tail_prob_str = paste0("tail prob. P(y>q=", q_, "|x)")
-df_plot_surplus_tail_prob_1 = 
-  df_plot_surplus_tail_prob %>%
-  pivot_longer(-draft_pick) %>%
-  mutate(
-    curve = str_remove_all(name, "_v1|_1_M|_1_L|_1_U"),
-    letter = str_sub(name, nchar(name), nchar(name)),
-    curve = ifelse(curve=="tail_prob", tail_prob_str, curve),
-  ) %>%
-  select(-name) %>%
-  pivot_wider(names_from = "letter", values_from = "value")
-df_plot_surplus_tail_prob_1
-
-color_vals = c("firebrick", "dodgerblue2", "forestgreen")
-color_vals = setNames(color_vals, c("compensation", tail_prob_str, "surplus"))
-fill_vals = c("dodgerblue2", "forestgreen")
-fill_vals = setNames(fill_vals, c(tail_prob_str, "surplus"))
-df_plot_surplus_tail_prob_1 %>%
-  ggplot(aes(x = draft_pick, color = curve, fill = curve)) +
-  geom_ribbon(aes(ymin=L, ymax=U), alpha=0.5) +
-  geom_line(aes(y=M), linewidth=1) +
-  xlab("draft pick") +
-  scale_color_manual(name="", values=color_vals) +
-  scale_fill_manual(name="", values=fill_vals) +
-  # scale_color_brewer(name="", palette = "Set1") +
-  ylab("value relative to first pick") +
-  # labs(title=paste0("q = ", q_)) +
-  # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
-  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# ### surplus value tail probability curve
+# table(df_post_summary_tail_prob$q)
+# # q_ = 0.10
+# # q_ = 0.15
+# q_ = 0.175
+# df_plot_surplus_tail_prob = 
+#   df_post_summary_tail_prob %>%
+#   filter(q == q_) %>%
+#   select(draft_pick, compensation_v1,
+#          tail_prob_1_M, tail_prob_1_L, tail_prob_1_U) %>%
+#   mutate(
+#     surplus_1_M = tail_prob_1_M - compensation_v1,
+#     surplus_1_L = tail_prob_1_L - compensation_v1,
+#     surplus_1_U = tail_prob_1_U - compensation_v1,
+#   ) %>%
+#   rename(compensation_1_M  = compensation_v1)
+# df_plot_surplus_tail_prob
+# tail_prob_str = paste0("tail prob. P(y>r=", q_, "|x)")
+# df_plot_surplus_tail_prob_1 = 
+#   df_plot_surplus_tail_prob %>%
+#   pivot_longer(-draft_pick) %>%
+#   mutate(
+#     curve = str_remove_all(name, "_v1|_1_M|_1_L|_1_U"),
+#     letter = str_sub(name, nchar(name), nchar(name)),
+#     curve = ifelse(curve=="tail_prob", tail_prob_str, curve),
+#   ) %>%
+#   select(-name) %>%
+#   pivot_wider(names_from = "letter", values_from = "value")
+# df_plot_surplus_tail_prob_1
+# 
+# color_vals = c("firebrick", "dodgerblue2", "forestgreen")
+# color_vals = setNames(color_vals, c("compensation", tail_prob_str, "surplus"))
+# fill_vals = c("dodgerblue2", "forestgreen")
+# fill_vals = setNames(fill_vals, c(tail_prob_str, "surplus"))
+# df_plot_surplus_tail_prob_1 %>%
+#   ggplot(aes(x = draft_pick, color = curve, fill = curve)) +
+#   geom_ribbon(aes(ymin=L, ymax=U), alpha=0.5) +
+#   geom_line(aes(y=M), linewidth=1) +
+#   xlab("draft pick") +
+#   scale_color_manual(name="", values=color_vals) +
+#   scale_fill_manual(name="", values=fill_vals) +
+#   # scale_color_brewer(name="", palette = "Set1") +
+#   ylab("value relative to first pick") +
+#   # labs(title=paste0("q = ", q_)) +
+#   # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
+#   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 ###########################
 ### G `GM Value` curves ###
@@ -605,8 +641,12 @@ G_Scurve_func <- function(a, b) {
 }
 
 ### plot the G curve success function
-betaCdfStr <- function(a,b) { paste0("G(y) = betaCdf(\U003B1=",a,", \U03B2=",b,")(y)") }
-# betaCdfStr <- function(a,b) { bquote(paste('G(y) = F'['Beta']*"(\U003B1=",.(a),", \U03B2=",.(b),")(y)")) }
+betaCdfStr <- function(a,b) { 
+  # bquote(paste('G(y) = F'['Beta']*"(\U003B1=",.(a),", \U03B2=",.(b),")(y)"))
+  # paste0("G(y) = betaCdf(\U003B1=",a,", \U03B2=",b,")(y)") 
+  paste0("G(y) = S(\U003B1=",a,", \U03B2=",b,")(y)") 
+}
+# betaCdfStr <- function(a,b) {  }
   
 plot_G_Scurve <- function(a,b) {
   plot_G = 
@@ -642,7 +682,8 @@ plot_G_Scurve(a=5,b=60)
 #          c(0.5, 0.74, 0.9, 0.95, 0.98))
 
 ### plot the linear success function
-tibble(x = seq(0,0.30,length.out=1000)) %>%
+plot_G_linear = 
+  tibble(x = seq(0,0.30,length.out=1000)) %>%
   ggplot(aes(x=x)) +
   xlab("y") + ylab("G") +
   labs(
@@ -656,6 +697,15 @@ tibble(x = seq(0,0.30,length.out=1000)) %>%
     fun = function(y) y, 
     colour = "black", geom = "point"
   )
+plot_G_linear
+
+plot_G_curves = 
+  plot_G_step(q=0.10) +
+  plot_G_Scurve(a=5,b=60) +
+  plot_G_Scurve(a=6,b=35) +
+  plot_G_linear 
+# plot_G_curves
+ggsave("plots_overall/plot_G_curves.png", width=10, height=8)
 
 ############################################################
 ### G `success` function value curves V_G(x) = E[G(Y)|x] ###
@@ -779,7 +829,7 @@ df_plot_G_id_perfv %>%
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
-### get V_G(x) for step function G(y) = 1{y>q}
+### get V_G(x) for step function G(y) = 1{y>r}
 q_ = 0.10
 df_V_G_step = get_df_V_G(
   G_func=S_step_func(q=q_), 
@@ -788,7 +838,7 @@ df_V_G_step = get_df_V_G(
 )
 df_V_G_step
 
-### check that V_G(x) matches P(y>q|x)
+### check that V_G(x) matches P(y>r|x)
 df_V_G_step %>%
   mutate(desc = paste0("E[G(Y)|x],\n", desc,"\n")) %>%
   bind_rows(
@@ -830,7 +880,9 @@ df_plot_V_G =
   select(-V_G) 
 df_plot_V_G
 
-df_plot_V_G %>%
+###
+plot_VG = 
+  df_plot_V_G %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
   geom_line(linewidth=1) +
@@ -840,18 +892,24 @@ df_plot_V_G %>%
   xlab("draft pick") +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_VG
+ggsave("plots_overall/plot_G_valueCurves.png",width=10,height=5)
 
 ### visualize V_G(x)
 df_plot_V_G_A = 
   bind_rows(
-    df_plot_V_G %>%
-      # mutate(desc = paste0("V(x) = E[G(Y)|x]/E[G(Y)|x=1],\n", desc,"\n"))
-      # mutate(desc = bquote(paste('V'['G']*'(x) = ,', desc, '\n')))
-      # mutate(desc = paste0('V_G(x) = ,', desc, '\n'))
-      # mutate(desc = paste0('V_G(x),', desc))
-      # mutate(desc = latex2exp::TeX("$V_G(x)$"))
-      mutate(desc = desc) 
+    df_V_G_id
     ,
+    df_V_G_Scurve_1
+    ,
+    # df_plot_V_G %>%
+    #   # mutate(desc = paste0("V(x) = E[G(Y)|x]/E[G(Y)|x=1],\n", desc,"\n"))
+    #   # mutate(desc = bquote(paste('V'['G']*'(x) = ,', desc, '\n')))
+    #   # mutate(desc = paste0('V_G(x) = ,', desc, '\n'))
+    #   # mutate(desc = paste0('V_G(x),', desc))
+    #   # mutate(desc = latex2exp::TeX("$V_G(x)$"))
+    #   mutate(desc = desc) 
+    # ,
     df_post_summary_perf_EV %>% 
       select(draft_pick, compensation_v1) %>%
       rename(V_G1 = compensation_v1) %>%
@@ -867,7 +925,8 @@ df_plot_V_G_A =
   )
 df_plot_V_G_A
 
-df_plot_V_G_A %>%
+plot_VG1 = 
+  df_plot_V_G_A %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
   geom_line(linewidth=1) +
@@ -882,6 +941,8 @@ df_plot_V_G_A %>%
   xlab("draft pick") +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_VG1
+ggsave("plots_overall/plot_G_valueCurves1.png",width=10,height=5)
 
 ###########################################
 ### Accounting for cost: surplus curves ###
@@ -906,7 +967,8 @@ df_post_summary_density_surplus =
 df_post_summary_density_surplus
 
 ### plot posterior conditional surplus density
-df_post_summary_density_surplus %>%
+plot_post_surplus_density_rd1 = 
+  df_post_summary_density_surplus %>%
   filter(draft_pick %in% c(seq(1,32,by=2))) %>%
   ggplot(aes(x=s, color=factor(draft_pick))) +
   geom_line(aes(y=density_M), linewidth=1) +
@@ -919,8 +981,11 @@ df_post_summary_density_surplus %>%
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
+# plot_post_surplus_density_rd1
+ggsave("plots_overall/plot_post_surplus_density_rd1.png", width=7, height=5)
 
-df_post_summary_density_surplus %>%
+plot_post_surplus_density_rdsall = 
+  df_post_summary_density_surplus %>%
   filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
   ggplot(aes(x=s, color=factor(draft_pick))) +
   geom_line(aes(y=density_M), linewidth=1) +
@@ -933,8 +998,8 @@ df_post_summary_density_surplus %>%
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
-
-###
+# plot_post_surplus_density_rdsall
+ggsave("plots_overall/plot_post_surplus_density_rdsall.png", width=7, height=5)
 
 ### get V_G(x) for 1 function G(y) = 1
 df_V_G_1fs = get_df_V_G(
@@ -972,7 +1037,8 @@ df_plot_V_G_S =
   select(-V_G) 
 df_plot_V_G_S
 
-df_plot_V_G_S %>%
+plot_V_G_S = 
+  df_plot_V_G_S %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
   geom_line(linewidth=1) +
@@ -980,16 +1046,15 @@ df_plot_V_G_S %>%
   ylab("surplus value relative to first pick") +
   xlab("draft pick") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_V_G_S
+ggsave("plots_overall/plot_G_surplusValueCurves.png",width=10,height=5)
 
 df_plot_V_G_S_A = 
   bind_rows(
-    df_plot_V_G %>%
-      filter(str_detect(desc, "betaCdf") & str_detect(desc, "35")) %>%
+    df_V_G_Scurve_1 %>%
       mutate(desc = paste0("V(G)(y), ", desc))
     ,
-    df_plot_V_G_S %>%
-      filter(str_detect(desc, "betaCdf") & str_detect(desc, "35")) %>%
-      mutate(desc = paste0("SV(G)(y), ", desc))
+    df_V_G_Scurve_1_S %>% mutate(desc = paste0("SV(G)(y), ", desc))
     ,
     df_plot_V_G %>%
       filter(str_detect(desc, "= y")) %>%
@@ -1014,7 +1079,8 @@ df_plot_V_G_S_A =
   )
 df_plot_V_G_S_A
 
-df_plot_V_G_S_A %>%
+plot_V_G_S_A = 
+  df_plot_V_G_S_A %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
   geom_line(linewidth=1) +
@@ -1029,5 +1095,6 @@ df_plot_V_G_S_A %>%
   xlab("draft pick") +
   # scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
-
+# plot_V_G_S_A
+ggsave("plots_overall/plot_G_surplusValueCurves1.png",width=10,height=5)
 
