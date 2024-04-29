@@ -1,5 +1,5 @@
 data {
-  int<lower=0> n;                      // number of datapoint
+  int<lower=0> n;                      // number of datapoints
   int<lower=0> m;                      // number of columns in the draft_pick basis matrix
   real x[n];                           // draft pick x values 
   real xmat[n,m];                      // basis matrix of draft pick x values 
@@ -7,18 +7,15 @@ data {
   real<lower=0,upper=1> y[n];          // vector of response values `apy_cap_pct_2C`
 
   int<lower=0> n_new;                      
-  int<lower=0> m_new;         
   real x_new[n_new];        
-  real xmat_new[n_new,m_new];        
+  real xmat_new[n_new,m];        
 }
 parameters {
   real alpha_0;
   real alpha_1;
-  //real alpha[m];    
   real beta[m];  
   real gamma_0;
   real gamma_1;
-  //real gamma[m]; 
 }
 transformed parameters {
   real bust_linpred[n];
@@ -31,11 +28,9 @@ transformed parameters {
   
   for (i in 1:n) {
     bust_linpred[i] = alpha_0 + alpha_1*x[i];
-    //bust_linpred[i] = dot_product(xmat[i,:], alpha);
     mu_linpred[i] = dot_product(xmat[i,:], beta);
     phi_linpred[i] = gamma_0 + gamma_1*x[i];
-    //phi_linpred[i] = dot_product(xmat[i,:], gamma);
-    
+
     mu[i] = inv_logit(mu_linpred[i]);
     phi[i] = exp(phi_linpred[i]);
     shape1[i] = mu[i]*phi[i];
@@ -64,10 +59,9 @@ generated quantities {
   real<lower=0> phi_new[n_new];
 
   for (i in 1:n_new) {
-    bust_prob_new[i] = inv_logit(alpha_0 + alpha_1*x[i]);
+    bust_prob_new[i] = inv_logit(alpha_0 + alpha_1*x_new[i]);
     mu_new[i] = inv_logit(dot_product(xmat_new[i,:], beta));
     phi_new[i] = exp(gamma_0 + gamma_1*x_new[i]);
-    //phi_new[i] = exp(dot_product(xmat_new[i,:], gamma));
   }
 }
 
