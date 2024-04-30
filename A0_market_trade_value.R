@@ -1,7 +1,7 @@
 
 ### analysis using just 2013+
 post2013 = FALSE
-post2013_str = if (post2013) "post2013" else ""
+post2013_str = if (post2013) "_post2013" else ""
 
 ##################
 ### load stuff ###
@@ -23,7 +23,7 @@ theme_update(
 ) 
 
 ### read trade market dataframe
-df0 = read_csv("data_draft_trades_march2024_Chris.csv", show_col_types = F)
+df0 = read_csv("data_draft_trades_m24_Chris.csv", show_col_types = F)
 if (post2013) {
   df0 = df0 %>% filter(year >= 2013)
 }
@@ -104,11 +104,13 @@ f <- function(lambda=0.146, beta=0.698, rho=0, df=df0, discount=FALSE, response=
   ### calculate and return f
   assertthat::assert_that(all(dim(weibull_L) == dim(dfactor_L)))
   assertthat::assert_that(all(dim(weibull_H2) == dim(dfactor_H2)))
-  weib_sum = rowSums(weibull_L/dfactor_L) - rowSums(weibull_H2/dfactor_H2)
+  # weib_sum = rowSums(weibull_L/dfactor_L) - rowSums(weibull_H2/dfactor_H2)
+  weib_sum = rowSums(weibull_L*dfactor_L) - rowSums(weibull_H2*dfactor_H2)
   
   # browser()
   assertthat::assert_that( all(dfactor_H1==1) | length(dfactor_H1) == length(weib_sum) )
-  d_weib_sum = dfactor_H1 * weib_sum
+  # d_weib_sum = dfactor_H1 * weib_sum
+  d_weib_sum = weib_sum / dfactor_H1
   sum(d_weib_sum < 0)
   d_weib_sum_trunc = ifelse(d_weib_sum > 0, d_weib_sum, 1e-5)
   # log_d_weib_sum = -1/lambda * log(d_weib_sum)
@@ -133,7 +135,7 @@ f <- function(lambda=0.146, beta=0.698, rho=0, df=df0, discount=FALSE, response=
 
 ### value of the t^th pick relative to the first pick
 v <- function(t, beta, lambda, rho=0, n=0) {
-  exp(-lambda*(t-1)^beta) / (1+rho)^n
+  exp(-lambda*(t-1)^beta) * (1+rho)^n
 }
 
 ##########################
@@ -148,7 +150,7 @@ BOOT_ME = TRUE
 # BOOT_ME = FALSE
 B = 100
 
-params_df_filename = paste0("df_market_curve_weibull_params_",post2013_str,".csv")
+params_df_filename = paste0("data_market_curve_weibull_params",post2013_str,".csv")
 if (file.exists(params_df_filename) & !OVERWRITE_PARAMS_DF) {
   params_df = read_csv(params_df_filename)
 } else {
@@ -179,7 +181,8 @@ if (file.exists(params_df_filename) & !OVERWRITE_PARAMS_DF) {
       start = c(lambda=0.146, beta=0.698), 
       lower = c(lambda=0, beta=0), 
       algorithm = "LM",
-      trace = TRACE_ME
+      trace = TRACE_ME,
+      control = list(maxiter = 100)
     )
     m1
     sm1 = summary(m1)
@@ -188,14 +191,18 @@ if (file.exists(params_df_filename) & !OVERWRITE_PARAMS_DF) {
     lambda_m1 = sm1_coeffs["lambda","Estimate"]
     betas_m1[b+1] = beta_m1
     lambdas_m1[b+1] = lambda_m1
+    rhos_m1 = 0
     
     ### second model: no discount factor
     m2 <- nlsLM(
       y_b ~ f(lambda, beta, rho, df=df_b, discount = TRUE, response = FALSE), 
       start = c(lambda=0.0996, beta=0.745, rho=1), 
-      lower = c(lambda=0, beta=0, rho=0), 
+      # lower = c(lambda=0, beta=0, rho=0), 
+      lower = c(lambda=0, beta=0, rho=-1), 
+      # upper = c(lambda=Inf,beta=Inf,rho=Inf),
       algorithm = "LM",
-      trace = TRACE_ME
+      trace = TRACE_ME,
+      control = list(maxiter = 100)
     )
     m2
     sm2 = summary(m2)
@@ -208,7 +215,7 @@ if (file.exists(params_df_filename) & !OVERWRITE_PARAMS_DF) {
     rhos_m2[b+1] = rho_m2
   }
   params_df = 
-    tibble(b = bs, m=1, lambda=lambdas_m1, beta = betas_m1) %>%
+    tibble(b = bs, m=1, lambda=lambdas_m1, beta = betas_m1, rho = rhos_m1) %>%
     bind_rows(tibble(b = bs, m=2, lambda=lambdas_m2, beta = betas_m2, rho = rhos_m2))
   params_df
   write_csv(params_df, params_df_filename)
@@ -280,7 +287,7 @@ df_market_curve_CIs =
     m = ifelse(m=="2", paste0("Ours (with\ndiscount factor,\n",years_str,")\n"), m),
   ) 
 df_market_curve_CIs
-write_csv(df_market_curve_CIs, paste0("df_market_curves_weibull",post2013_str,".csv"))
+write_csv(df_market_curve_CIs, paste0("data_market_curves_weibull",post2013_str,".csv"))
 
 df_market_curves_OG = 
   tibble(
@@ -308,7 +315,7 @@ plot_market_curves_boot =
   xlab("Draft pick") +
   labs(title = "Trade market curves")
 # plot_market_curves_boot
-ggsave(paste0("plot_market_curves_boot_",post2013_str,".png"),plot_market_curves_boot,width=11,height=5)
+ggsave(paste0("plots_weibull/plot_market_curves_boot",post2013_str,".png"),plot_market_curves_boot,width=11,height=5)
 
 df_plot_market_curves = 
   bind_rows(
@@ -330,7 +337,7 @@ plot_market_curves =
   ylab("Estimated value\nrelative to No. 1 pick") +
   xlab("Draft pick") +
   labs(title = "Trade market curves")
-ggsave(paste0("plot_market_curves_",post2013_str,".png"),plot_market_curves,width=10,height=5)
+ggsave(paste0("plots_weibull/plot_market_curves",post2013_str,".png"),plot_market_curves,width=10,height=5)
 
 #################
 ### Visualize ###

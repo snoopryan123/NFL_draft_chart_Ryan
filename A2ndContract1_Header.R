@@ -251,12 +251,54 @@ if (SCRAPE_JJ_DATA | !file.exists(filename_data_JJ)) {
 }
 print(df_jj)
 
+############################
+### Observed Trades Data ###
+############################
+
+df_trades_0 = read_csv("data_draft_trades_m24_Chris.csv", show_col_types = F)
+# df_trades_0
+
+df_trades_1a = 
+  df_trades_0 %>%
+  mutate(trade_idx = 1:n()) %>%
+  select(
+    trade_idx, upick1, upick2, upick3, 
+    dpick1, dpick2, dpick3, dpick4, dpick5, dpick6,
+    # all_of(ends_with("next_year"))
+  ) %>%
+  pivot_longer(-trade_idx) %>%
+  mutate(
+    team = str_sub(name,1,1),
+    round = as.numeric(sapply(value, function(v) str_split(v, "-")[[1]][1])),
+    draft_pick = as.numeric(sapply(value, function(v) str_split(v, "-")[[1]][2])),
+  )
+df_trades_1a
+
+df_trades_1b = 
+  df_trades_0 %>%
+  mutate(trade_idx = 1:n()) %>%
+  select(
+    trade_idx, #upick1, upick2, upick3, 
+    # dpick1, dpick2, dpick3, dpick4, dpick5, dpick6,
+    all_of(ends_with("next_year"))
+  ) %>%
+  pivot_longer(-trade_idx) %>%
+  rename(next_year = value)
+df_trades_1b
+
+df_trades_1 = df_trades_1a %>% mutate(years_ahead = df_trades_1b$next_year) %>% drop_na(value) 
+df_trades_1
+
+df_trades = df_trades_1 %>% select(trade_idx, team, draft_pick, years_ahead)
+df_trades
+
 ########################################
 ### Weibull Trade Market Draft Chart ###
 ########################################
 
-df_trade_market_weibull = read_csv("df_market_curves_weibull.csv", show_col_types = F)
+df_trade_market_weibull = read_csv("data_market_curves_weibull.csv", show_col_types = F)
 print(df_trade_market_weibull)
+
 
 
 

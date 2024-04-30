@@ -119,7 +119,8 @@ vec_rhats = df_summary[,"Rhat"]
 vec_rhats
 vec_rhats1 = vec_rhats[!str_detect(names(vec_rhats), "_new") & !str_detect(names(vec_rhats), "lp__")]
 vec_rhats1
-hist(vec_rhats1)
+all(vec_rhats1 < 1.1)
+# hist(vec_rhats1)
 
 #############################
 ### get posterior samples ###
@@ -205,7 +206,7 @@ df_overall_emp
 
 ### plot conditional mean mu(x,pos) and standard deviation sd(x,pos) and bust_prob(x,pos)
 df_plot_musdbp = 
-  left_join(df_new, df_post_vals_1, by="i") %>% 
+  df_post_vals_byPos %>% 
   left_join(df_overall_emp, by=c("draft_pick", "pos"))
 df_plot_musdbp
 
@@ -410,9 +411,9 @@ plot_post_density_rdsall =
 # plot_post_density_rdsall
 ggsave("plots_byPos/plot_post_density_rdsall_byQB.png", width=11, height=5)
 
-##################################################################
-### G `success` function value curves V_G(x,QB) = E[G(Y)|x,QB] ###
-##################################################################
+###################################################################
+### G `GM value` function value curves V_G(x,QB) = E[G(Y)|x,QB] ###
+###################################################################
 
 ### the step success function
 G_step_func <- function(q) { function(y) { as.numeric(y>q) } }
@@ -660,5 +661,8 @@ plot_SVG =
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_VG
 ggsave("plots_byPos/plot_G_surplusValueCurves.png",width=15,height=5)
+
+
+
 
 

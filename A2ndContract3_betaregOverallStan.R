@@ -98,7 +98,8 @@ vec_rhats = df_summary[,"Rhat"]
 vec_rhats
 vec_rhats1 = vec_rhats[!str_detect(names(vec_rhats), "_new") & !str_detect(names(vec_rhats), "lp__")]
 vec_rhats1
-hist(vec_rhats1)
+all(vec_rhats1 < 1.1)
+# hist(vec_rhats1)
 
 #############################
 ### get posterior samples ###
@@ -707,9 +708,9 @@ plot_G_curves =
 # plot_G_curves
 ggsave("plots_overall/plot_G_curves.png", width=10, height=8)
 
-############################################################
-### G `success` function value curves V_G(x) = E[G(Y)|x] ###
-############################################################
+#############################################################
+### G `GM value` function value curves V_G(x) = E[G(Y)|x] ###
+#############################################################
 
 ### posterior summary of beta shape parameters and bust probability
 df_post_summary_shapeparams = 
@@ -763,10 +764,10 @@ G_times_density <- function(bust_prob, shape1, shape2, cost, G_func, surplus=FAL
 ### get dataframe of V_G(x) = E[G(Y)|x] = ∫ G(y)•f(y|x) dy
 ### over each value of x
 get_df_V_G <- function(
-    G_func, desc="", surplus=FALSE
+    G_func, desc="", surplus=FALSE, printme=TRUE
   ) {
   V_G <- function(x) {
-    print(paste0("computing V_G(x) for draft pick x = ", x))
+    if (printme) print(paste0("computing V_G(x) for draft pick x = ", x))
     dfx = df_post_summary_shapeparams %>% filter(draft_pick == x)
     dfx
     integrand_x = G_times_density(
@@ -777,7 +778,7 @@ get_df_V_G <- function(
       surplus=surplus
     )
     int_ = integrate(integrand_x, lower = 0, upper = 1)
-    print(int_)
+    if (printme) print(int_)
     int_$value
   }
   df_V_G = tibble(draft_pick = 1:256)
@@ -856,12 +857,13 @@ df_V_G_step %>%
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 ### get V_G(x) for G curve function 
-get_df_V_G_Scurve <- function(a,b,surplus=FALSE) {
+get_df_V_G_Scurve <- function(a,b,surplus=FALSE,printme=TRUE) {
   get_df_V_G(
     G_func=G_Scurve_func(a,b),
     # desc = paste0("E[G(Y)|x] ", ", ", betaCdfStr(a,b))
     desc = betaCdfStr(a,b),
-    surplus = surplus
+    surplus = surplus,
+    printme=printme
   )
 }
 df_V_G_Scurve_1 = get_df_V_G_Scurve(a=6, b=35)
@@ -1097,4 +1099,49 @@ plot_V_G_S_A =
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_V_G_S_A
 ggsave("plots_overall/plot_G_surplusValueCurves1.png",width=12,height=5)
+
+
+############################################################
+### Best fitting G function to the observed trade market ###
+############################################################
+
+# eval_MAE_V1_G_Scurve <- function(a, b) {
+#   print(paste0("eval_MAE_V1_G_Scurve(a=",a,",b=",b,")"))
+#   df_V_G_Scurve_ab = get_df_V_G_Scurve(a, b, printme=F)
+#   df_V_G_Scurve_ab
+#   df_trades_Gab0 = 
+#     left_join(
+#       df_trades, 
+#       df_V_G_Scurve_ab %>% select(draft_pick, V_G1),
+#       by="draft_pick"
+#     ) 
+#   df_trades_Gab0
+#   df_trades_Gab1 = 
+#     df_trades_Gab0 %>%
+#     group_by(trade_idx,team) %>%
+#     summarise(
+#       sum_v1 = sum(V_G1),
+#       .groups = "drop"
+#     ) %>%
+#     pivot_wider(names_from = team, values_from = sum_v1, names_prefix = "sum_v1_") %>%
+#     mutate(v1_u_minus_d = sum_v1_u - sum_v1_d) %>%
+#     drop_na()
+#   df_trades_Gab1
+#   result = mean(abs(df_trades_Gab1$v1_u_minus_d)) ### MAE
+#   print(result)
+#   result
+# }
+# # eval_MAE_V1_G_Scurve(a=6, b=35)
+# 
+# grid_ab0 = as_tibble(expand.grid(a = 1:10, b = seq(20,100,by=2)))
+# # grid_ab0 = as_tibble(expand.grid(a = seq(5,30,by=2), b = seq(5,30,by=2)))
+# # grid_ab0 = as_tibble(expand.grid(a = seq(1,100,by=4), b = seq(1,20,by=4)))
+# grid_ab0
+# grid_ab = 
+#   grid_ab0 %>%
+#   rowwise() %>%
+#   mutate(G_mae = eval_MAE_V1_G_Scurve(a,b)) %>%
+#   ungroup()
+# grid_ab
+
 
