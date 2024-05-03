@@ -296,10 +296,16 @@ df_trades
 ### Weibull Trade Market Draft Chart ###
 ########################################
 
-df_trade_market_weibull = read_csv("data_market_curves_weibull.csv", show_col_types = F)
+df_trade_market_weibull_0 = read_csv("data_market_curves_weibull.csv", show_col_types = F)
+df_trade_market_weibull_0
+
+df_trade_market_weibull = 
+  df_trade_market_weibull_0 %>%
+  filter(str_detect(m, "with\n")) %>%
+  rename(draft_pick = t, V_G1 = v_M) %>%
+  select(draft_pick, V_G1) %>%
+  mutate(desc = "Weibull")
 print(df_trade_market_weibull)
-
-
 
 
 

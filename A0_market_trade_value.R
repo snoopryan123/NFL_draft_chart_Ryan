@@ -1,6 +1,7 @@
 
 ### analysis using just 2013+
 post2013 = FALSE
+# post2013 = TRUE
 post2013_str = if (post2013) "_post2013" else ""
 
 ##################
@@ -314,7 +315,7 @@ plot_market_curves_boot =
   ylab("Estimated value\nrelative to No. 1 pick") +
   xlab("Draft pick") +
   labs(title = "Trade market curves")
-# plot_market_curves_boot
+plot_market_curves_boot
 ggsave(paste0("plots_weibull/plot_market_curves_boot",post2013_str,".png"),plot_market_curves_boot,width=11,height=5)
 
 df_plot_market_curves = 
@@ -332,11 +333,12 @@ plot_market_curves =
   # ) %>%
   ggplot(aes(x=t, color=factor(m))) +
   geom_line(aes(y=v), linewidth=1) +
-  scale_color_manual(values=brewer.pal(name="Set1",n=9)) +
+  scale_color_manual(name="", values=brewer.pal(name="Set1",n=9)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32)) +
   ylab("Estimated value\nrelative to No. 1 pick") +
   xlab("Draft pick") +
   labs(title = "Trade market curves")
+plot_market_curves
 ggsave(paste0("plots_weibull/plot_market_curves",post2013_str,".png"),plot_market_curves,width=10,height=5)
 
 #################

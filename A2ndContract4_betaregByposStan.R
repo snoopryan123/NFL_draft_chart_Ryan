@@ -420,7 +420,7 @@ G_step_func <- function(q) { function(y) { as.numeric(y>q) } }
 ### the G curve success function
 G_Scurve_func <- function(a, b) { function(y) { pbeta(y, a, b) } }
 ### S curve string description
-betaCdfStr <- function(a,b) { paste0("G(y) = S(\U003B1=",a,", \U03B2=",b,")(y)") }
+betaCdfStr <- function(a,b) { paste0("g(y) = S(\U003B1=",a,", \U03B2=",b,")(y)") }
 
 ### posterior summary of beta shape parameters and bust probability
 df_post_summary_shapeparams_QB = 
@@ -489,24 +489,24 @@ get_df_V_G_QB <- function(
 }
 
 ### get V_G(x) for 1 function G(y) = 1
-df_V_G_1f = get_df_V_G_QB(G_func=function(y) { 1 }, desc=paste0("G(y) = 1"))
+df_V_G_1f = get_df_V_G_QB(G_func=function(y) { 1 }, desc=paste0("g(y) = 1"))
 df_V_G_1f
 ### all values should be 1 (integrates to 1)
 mean(abs(df_V_G_1f$V_G))
 
 ### get V_G(x) for identity function G(y) = y
-df_V_G_id = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("G(y) = y"))
+df_V_G_id = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("g(y) = y"))
 df_V_G_id
 
 ### get V_G(x) for step function G(y) = 1{y>r}
 q_ = 0.1
-df_V_G_step_1 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"))
+df_V_G_step_1 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"))
 df_V_G_step_1
 q_ = 0.15
-df_V_G_step_2 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"))
+df_V_G_step_2 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"))
 df_V_G_step_2
 q_ = 0.2
-df_V_G_step_3 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"))
+df_V_G_step_3 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"))
 df_V_G_step_3
 
 ### get V_G(x) for G curve function 
@@ -531,7 +531,9 @@ df_plot_V_G =
     df_V_G_step_3,
     df_V_G_Scurve_1,
     df_V_G_Scurve_2,
-    bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
+    # bind_rows(df_trade_market_weibull %>% mutate(QB="QB"), df_trade_market_weibull %>% mutate(QB="not QB")),
+    # bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
+    bind_rows(df_jj_1 %>% mutate(QB="QB")),
     df_V_G_id
   ) #%>% select(-V_G) 
 df_plot_V_G
@@ -543,15 +545,15 @@ plot_VG =
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
   # ggplot(aes(x=draft_pick, y = V_G, color=desc)) +
   facet_wrap(~QB) +
-  geom_line(linewidth=1) +
-  # scale_color_brewer(name="V(x) = E[G(Y)|x]", palette = "Set1") +
-  scale_color_brewer(name=bquote(paste('V'['G']*'(x) = E[G(Y)|x]')), palette = "Set2") +
+  geom_line(linewidth=2) +
+  scale_color_brewer(name="E[g(Y)|x,pos]/E[g(Y)|x=1,qb]", palette = "Set2") +
+  # scale_color_brewer(name=bquote(paste('v'['g']*'(x) = E[g(Y)|x]')), palette = "Set2") +
   xlab("draft pick") +
   ylab("value relative to first QB pick") +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_VG
-ggsave("plots_byPos/plot_G_valueCurves.png",width=15,height=5)
+ggsave("plots_byPos/plot_G_valueCurves_byQB.png",width=15,height=5)
 
 ###########################################
 ### Accounting for cost: surplus curves ###
@@ -607,24 +609,24 @@ plot_post_surplus_density_rdsall =
 ggsave("plots_byPos/plot_post_surplus_density_rdsall_byQB.png", width=11, height=5)
 
 ### get V_G(x) for 1 function G(y) = 1
-df_V_G_1fs = get_df_V_G_QB(G_func=function(y) { 1 }, desc=paste0("G(y) = 1"), surplus=TRUE)
+df_V_G_1fs = get_df_V_G_QB(G_func=function(y) { 1 }, desc=paste0("g(y) = 1"), surplus=TRUE)
 df_V_G_1fs
 ### all values should be 1 (integrates to 1)
 mean(abs(df_V_G_1fs$V_G))
 
 ### get V_G(x) for identity function G(y) = y
-df_V_G_id_S = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("G(y) = y"), surplus=TRUE)
+df_V_G_id_S = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("g(y) = y"), surplus=TRUE)
 df_V_G_id_S
 
 ### get V_G(x) for step function G(y) = 1{y>r}
 q_ = 0.1
-df_V_G_step_1_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus=TRUE)
+df_V_G_step_1_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE)
 df_V_G_step_1_S
 q_ = 0.15
-df_V_G_step_2_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus=TRUE)
+df_V_G_step_2_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE)
 df_V_G_step_2_S
 q_ = 0.2
-df_V_G_step_3_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus=TRUE)
+df_V_G_step_3_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE)
 df_V_G_step_3_S
 
 ### get V_G(x) for G curve function 
@@ -641,7 +643,9 @@ df_plot_SV_G =
     df_V_G_step_3_S,
     df_V_G_Scurve_1_S,
     df_V_G_Scurve_2_S,
-    bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
+    # bind_rows(df_trade_market_weibull %>% mutate(QB="QB"), df_trade_market_weibull %>% mutate(QB="not QB")),
+    # bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
+    bind_rows(df_jj_1 %>% mutate(QB="QB")),
     df_V_G_id_S
   ) #%>% select(-V_G) 
 df_plot_SV_G
@@ -652,15 +656,15 @@ plot_SVG =
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
   # ggplot(aes(x=draft_pick, y = V_G, color=desc)) +
   facet_wrap(~QB) +
-  geom_line(linewidth=1) +
-  # scale_color_brewer(name="V(x) = E[G(Y)|x]", palette = "Set1") +
-  scale_color_brewer(name=bquote(paste('SV'['G']*'(x) = E[G(Y-cost)|x]')), palette = "Set2") +
+  geom_line(linewidth=2) +
+  scale_color_brewer(name="E[g(S)|x,pos]/E[g(S)|x=1,qb]", palette = "Set2") +
+  # scale_color_brewer(name=bquote(paste('sv'['g']*'(x) = E[G(Y-cost)|x]')), palette = "Set2") +
   xlab("draft pick") +
   ylab("surplus value relative to first QB pick") +
   # scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
-# plot_VG
-ggsave("plots_byPos/plot_G_surplusValueCurves.png",width=15,height=5)
+# plot_SVG
+ggsave("plots_byPos/plot_G_surplusValueCurves_byQB.png",width=15,height=5)
 
 
 

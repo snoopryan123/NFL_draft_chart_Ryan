@@ -205,7 +205,8 @@ plot_empWithCondMean =
   geom_line(aes(y = M_mu), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
   labs(
-    title = "conditional mean \U03BC(x) = E[Y|x]",
+    # title = "conditional mean \U03BC(x) = E[Y|x]",
+    title = "estimated \U03BC(x)",
     subtitle="given not a bust"
   ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
@@ -219,7 +220,7 @@ plot_empWithCondSd =
   geom_line(aes(y = M_sd), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
   labs(
-    title = "conditional standard deviation sd(x)",
+    title = "estimated sd(x)",
     subtitle="given not a bust"
   ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
@@ -233,13 +234,50 @@ plot_empWithCondBp =
   geom_ribbon(aes(ymin = L_bust_prob, ymax = U_bust_prob), fill="gray60", alpha=0.6) +
   geom_line(aes(y = M_bust_prob), linewidth=1) +
   xlab("draft pick") + ylab("probability") +
-  labs(title = "conditional bust probability bp(x)") +
+  labs(title = "estimated bp(x)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_empWithCondBp
 
 plot_empWithCondLines = plot_empWithCondMean + plot_empWithCondSd + plot_empWithCondBp
 # plot_empWithCondLines
-ggsave("plots_overall/plot_empWithCondLines.png", width=16, height=5)
+ggsave("plots_overall/plot_empWithCondLines.png", width=17, height=5)
+
+######################################################
+### visualize uniform bust density P(y | x, bust)  ###
+######################################################
+
+###
+# players_2C %>%
+#   filter(bust==1) %>%
+#   ggplot(aes(x=draft_pick)) 
+  
+### empirical 
+df_overall_emp_bustSpike =
+  players_2C %>%
+  filter(bust==1) %>%
+  group_by(draft_pick) %>%
+  summarise(
+    emp_mean_tail = mean(apy_cap_pct_2C),
+    emp_sd_tail = sd(apy_cap_pct_2C),
+    .groups = "drop"
+  ) 
+df_overall_emp_bustSpike
+
+plot_empBustSpikeDist =
+  df_overall_emp_bustSpike %>%
+  pivot_longer(-draft_pick) %>%
+  mutate(
+    quantity = str_remove_all(str_remove_all(name,"emp_"),"_tail"),
+    quantity = paste0("empirical conditional ", quantity),
+  ) %>%
+  ggplot(aes(x=draft_pick,y=value)) +
+  facet_wrap(~quantity) +
+  geom_point() +
+  geom_smooth(se=F, method=lm, linewidth=2, color="black") +
+  xlab("draft pick") + ylab("apy cap pct") +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_empBustSpikeDist
+ggsave("plots_overall/plot_empBustSpikeDist.png", width=11, height=5)
 
 ################################################
 ### performance value & surplus value curves ###
@@ -461,6 +499,14 @@ plot_func_betareg_overall_density <-
 # plot_func_betareg_overall_density(c(seq(1,32*3,by=8), seq(32*3,32*5,by=16)),F,F,F)
 # plot_func_betareg_overall_density(c(seq(1,32*2,by=32/8)),F,F,F)
 ###
+plot_func_betareg_overall_density(seq(1,64,by=32/8),T,F,T)
+plot_func_betareg_overall_density(seq(1,64*2,by=32/4),T,F,T)
+plot_func_betareg_overall_density(seq(1,64*4,by=32/2),T,F,T)
+###
+plot_func_betareg_overall_density(seq(1,64,by=32/8),F,T,T)
+plot_func_betareg_overall_density(seq(1,64*2,by=32/4),F,T,T)
+plot_func_betareg_overall_density(seq(1,64*4,by=32/2),F,T,T)
+###
 plot_func_betareg_overall_density(c(seq(1,16,by=1)),T,F,T)
 plot_func_betareg_overall_density(c(seq(17,32,by=1)),T,F,T)
 plot_func_betareg_overall_density(c(seq(33,48,by=1)),T,F,T)
@@ -506,13 +552,13 @@ get_tail_prob_df <- function(q) {
 # bind_rows(lapply(c(0.08, 0.12), get_tail_prob_df))
 df_post_summary_tail_prob_0 = bind_rows(lapply(q_grid, get_tail_prob_df))
 df_post_summary_tail_prob_0
-df_post_summary_tail_prob = 
+df_post_summary_tail_prob =
   left_join(
     df_post_summary_tail_prob_0,
-    df_post_summary_perf_EV %>% 
+    df_post_summary_perf_EV %>%
       select(i,draft_pick,all_of(starts_with("perf_EV1")),compensation_v1)
-  ) 
-df_post_summary_tail_prob 
+  )
+df_post_summary_tail_prob
 
 ### draft value curves using v_q(x) = P(y>r|x)
 
@@ -521,10 +567,10 @@ plot_tail_probs =
   df_post_summary_tail_prob %>%
   filter(draft_pick < 255) %>%
   ggplot(aes(x = draft_pick, y = tail_prob_M, color=factor(q))) +
-  geom_line(linewidth=1) +
+  geom_line(linewidth=2) +
   xlab("draft pick") +
   ylab("probability") +
-  labs(title = "posterior mean tail probability P(y>r|x)") +
+  labs(title = "tail probability P(y>r|x)") +
   scale_color_discrete(name="r") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_tail_probs
@@ -532,34 +578,69 @@ plot_tail_probs =
 ### plot posterior relative tail probability
 plot_tail_probs_relative = 
   df_post_summary_tail_prob %>%
-  filter(draft_pick < 255) %>%
+  # filter(draft_pick < 255) %>%
   ggplot(aes(x = draft_pick, y = tail_prob_1_M, color=factor(q))) +
-  geom_line(linewidth=1) +
+  geom_line(linewidth=2) +
   xlab("draft pick") +
   ylab("value relative to first pick") +
-  labs(title = "posterior mean relative tail probability P(y>r|x)/P(y>r|x=1)") +
+  labs(title = "relative tail probability P(y>r|x)/P(y>r|x=1)") +
   # labs(title = "tail probability P(y>r|x)/P(y>r|x=1)") +
   scale_color_discrete(name="r") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_tail_probs_relative
-
-ggsave("plots_overall/plot_tail_probs.png",
+ggsave("plots_overall/plot_tail_probs_0.png",
        plot_tail_probs + plot_tail_probs_relative,
        width=15, height=5)
 
-### plot posterior relative tail probability with performance value curve
-df_post_summary_tail_prob %>%
-  filter(draft_pick < 255) %>%
-  ggplot(aes(x = draft_pick, y = tail_prob_1_M, color=factor(q))) +
-  geom_line(linewidth=1) +
-  geom_line(aes(y = perf_EV1_M,), color="black", linetype="dashed", linewidth=1) +
-  geom_line(aes(y = compensation_v1), color="black", linetype="dashed", linewidth=1) +
+# ### plot posterior relative tail probability with performance value curve
+# plot_tail_probs_relative_1 = 
+#   df_post_summary_tail_prob %>%
+#   # filter(draft_pick < 255) %>%
+#   ggplot(aes(x = draft_pick, y = tail_prob_1_M, color=factor(q))) +
+#   geom_line(linewidth=2) +
+#   geom_line(aes(y = perf_EV1_M,), color="black", linetype="dashed", linewidth=1) +
+#   # geom_line(aes(y = compensation_v1), color="black", linetype="dashed", linewidth=1) +
+#   xlab("draft pick") +
+#   ylab("value relative to first pick") +
+#   labs(title = "relative tail probability P(y>r|x)/P(y>r|x=1)") +
+#   # labs(title = "tail probability P(y>r|x)/P(y>r|x=1)") +
+#   scale_color_discrete(name="r") +
+#   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# # plot_tail_probs_relative_1
+# ggsave("plots_overall/plot_tail_probs_1.png",
+#        plot_tail_probs + plot_tail_probs_relative_1,
+#        width=15, height=5)
+
+df_post_summary_tail_prob_1 = 
+  bind_rows(
+    df_post_summary_tail_prob %>% rename(v1 = tail_prob_1_M) %>% select(draft_pick,q,v1) %>% 
+      mutate(desc = "Right tail prob."),
+    df_post_summary_perf_EV %>% rename(v1 = perf_EV1_M) %>% select(draft_pick, v1) %>% 
+      mutate(desc = "Expected value"),
+    df_trade_market_weibull %>% rename(v1 = V_G1),
+    # df_jj %>% rename(v1 = jj_v1) %>%
+  )
+df_post_summary_tail_prob_1
+
+table(df_post_summary_tail_prob_1$desc)
+plot_tail_probs_relative_2 = 
+  df_post_summary_tail_prob_1 %>%
+  ggplot(aes(x = draft_pick, y = v1)) +
+  geom_line(linewidth=2, aes(color=factor(q))) +
+  geom_line(linewidth=2, aes(linetype=desc), data = . %>% filter(is.na(q)) ) +
   xlab("draft pick") +
   ylab("value relative to first pick") +
-  labs(title = "posterior mean relative tail probability P(y>r|x)/P(y>r|x=1)") +
+  scale_linetype_manual(name="", 
+    values = c("Expected value" = "dotted", "Right tail prob." = "solid", "Weibull" = "longdash")) +
+  labs(title = "relative value curves") +
+  # labs(title = "relative tail probability P(y>r|x)/P(y>r|x=1)") +
   # labs(title = "tail probability P(y>r|x)/P(y>r|x=1)") +
-  scale_color_discrete(name="r") +
+  scale_color_discrete(name="r", na.translate=F) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_tail_probs_relative_2
+ggsave("plots_overall/plot_tail_probs.png",
+       plot_tail_probs + plot_tail_probs_relative_2,
+       width=16, height=5.5)
 
 # ### surplus value tail probability curve
 # table(df_post_summary_tail_prob$q)
@@ -621,10 +702,10 @@ G_step_func <- function(q) {
 plot_G_step <- function(q) {
   tibble(x = seq(0,0.30,length.out=1000)) %>%
     ggplot(aes(x=x)) +
-    xlab("y") + ylab("G") +
+    xlab("y") + ylab("g") +
     labs(
-      title="step GM value function",
-      subtitle = paste0("G(y) = 1{y > ",q,"}")
+      title="step outcome value function",
+      subtitle = paste0("g(y) = 1{y > ",q,"}")
     ) +
     theme(
       plot.subtitle = element_text(size=15),
@@ -634,44 +715,103 @@ plot_G_step <- function(q) {
       colour = "black", geom = "point"
     )
 }
-plot_G_step(q=0.10)
+plot_G_step(q=0.15)
+ggsave("plots_overall/plot_G_curve_step.png", width=5, height=4)
 
 ### the G curve success function
 G_Scurve_func <- function(a, b) {
   function(y) { pbeta(y, a, b) }
 }
 
-### S curve string description
+### s curve string description
 betaCdfStr <- function(a,b) { 
-  # bquote(paste('G(y) = F'['Beta']*"(\U003B1=",.(a),", \U03B2=",.(b),")(y)"))
-  # paste0("G(y) = betaCdf(\U003B1=",a,", \U03B2=",b,")(y)") 
-  paste0("G(y) = S(\U003B1=",a,", \U03B2=",b,")(y)") 
+  # bquote(paste('g(y) = F'['Beta']*"(\U003B1=",.(a),", \U03B2=",.(b),")(y)"))
+  # paste0("g(y) = betaCdf(\U003B1=",a,", \U03B2=",b,")(y)") 
+  paste0("g(y) = s(\U003B1=",a,", \U03B2=",b,")(y)") 
 }
 # betaCdfStr <- function(a,b) {  }
   
-plot_G_Scurve <- function(a,b) {
+plot_G_Scurve <- function(a,b,quartiles=F) {
+  max_y = 0.30
+  plot_df_G = 
+    tibble(y = seq(0,max_y,length.out=1000)) %>%
+    mutate(
+      G = G_Scurve_func(a=a, b=b)(y),
+      diffG = c(0,diff(G)),
+      diffy = c(0,diff(y)),
+      deriv = diffG/diffy,
+      derivCrosses1 = as.numeric(
+        deriv >= 1 & lag(deriv,default=0) <= 1 |
+          deriv <= 1 & lag(deriv,default=0) >= 1
+      ),
+      derivCrosses1 = ifelse(is.na(derivCrosses1),0,derivCrosses1),
+    )
+  plot_df_G
   plot_G = 
-    tibble(x = seq(0,0.30,length.out=1000)) %>%
-    ggplot(aes(x=x)) +
-    xlab("y") + ylab("G") +
+    plot_df_G %>%
+    ggplot(aes(x=y,y=G)) +
+    geom_point() +
+    xlab("y") + ylab("g") +
     labs(
-      title="S curve GM value function",
+      title="s curve outcome value function",
       subtitle = betaCdfStr(a,b)
     ) +
     theme(
       plot.subtitle = element_text(size=15),
-    ) +
-    stat_function(
-      fun = G_Scurve_func(a=a, b=b), 
-      colour = "black", geom = "point"
-    )
-  print(paste0("G(y=0.01) = ", G_Scurve_func(a=a, b=b)(0.01)))
-  print(paste0("G(y=0.10) = ", G_Scurve_func(a=a, b=b)(0.10)))
-  print(paste0("G(y=0.25) = ", G_Scurve_func(a=a, b=b)(0.25)))
+    ) 
+  plot_G
+  if (quartiles) {
+    # quartiles_ = quantile( (plot_df_G)$y, c(0.25, 0.5, 0.75))
+    quartiles_ = (plot_df_G %>% filter(derivCrosses1==1))$y
+    plot_G = 
+      plot_G +
+      geom_vline(xintercept = quartiles_[1], color="gray60", linewidth=1, linetype="dashed") +
+      geom_vline(xintercept = quartiles_[2], color="gray60", linewidth=1, linetype="dashed") +
+      geom_vline(xintercept = quartiles_[3], color="gray60", linewidth=1, linetype="dashed")
+    plot_G
+    # quartiles_ = quantile( (plot_df_G)$y, c(0.25, 0.5, 0.75))
+    # plot_G = 
+    #   plot_G +
+    #   geom_vline(xintercept = quartiles_[1], color="gray60", linewidth=1, linetype="dashed") +
+    #   geom_vline(xintercept = quartiles_[2], color="gray60", linewidth=1, linetype="dashed") +
+    #   geom_vline(xintercept = quartiles_[3], color="gray60", linewidth=1, linetype="dashed")
+    # plot_G
+  }
+  plot_G
+  
+  # plot_G = 
+  #   tibble(x = seq(0,0.30,length.out=1000)) %>%
+  #   ggplot(aes(x=x)) +
+  #   xlab("y") + ylab("g") +
+  #   labs(
+  #     title="s curve outcome value function",
+  #     subtitle = betaCdfStr(a,b)
+  #   ) +
+  #   theme(
+  #     plot.subtitle = element_text(size=15),
+  #   ) +
+  #   stat_function(
+  #     fun = G_Scurve_func(a=a, b=b), 
+  #     colour = "black", geom = "point"
+  #   )
+  # if (quartiles) {
+  #   
+  # }
+  # plot_G
+  
+  # print(paste0("G(y=0.01) = ", G_Scurve_func(a=a, b=b)(0.01)))
+  # print(paste0("G(y=0.10) = ", G_Scurve_func(a=a, b=b)(0.10)))
+  # print(paste0("G(y=0.25) = ", G_Scurve_func(a=a, b=b)(0.25)))
   plot_G
 }
-plot_G_Scurve(a=6,b=35)
+plot_G_Scurve(a=6,b=35,quartiles=T)
+ggsave("plots_overall/plot_G_curve_S1.png", width=5, height=4)
 plot_G_Scurve(a=5,b=60)
+ggsave("plots_overall/plot_G_curve_S2.png", width=5, height=4)
+
+# plot_G_Scurve(a=6,b=35,quartiles=T)
+# plot_G_Scurve(a=12,b=70,quartiles=T)
+
 
 ### examine quantiles of apy cap pct
 # players_2C %>%
@@ -686,10 +826,10 @@ plot_G_Scurve(a=5,b=60)
 plot_G_linear = 
   tibble(x = seq(0,0.30,length.out=1000)) %>%
   ggplot(aes(x=x)) +
-  xlab("y") + ylab("G") +
+  xlab("y") + ylab("g") +
   labs(
-    title="linear GM value function",
-    subtitle = paste0("G(y) = y")
+    title="linear outcome value function",
+    subtitle = paste0("g(y) = y")
   ) +
   theme(
     plot.subtitle = element_text(size=15),
@@ -699,17 +839,37 @@ plot_G_linear =
     colour = "black", geom = "point"
   )
 plot_G_linear
+ggsave("plots_overall/plot_G_curve_line.png", width=5, height=4)
 
-plot_G_curves = 
-  plot_G_step(q=0.10) +
-  plot_G_Scurve(a=5,b=60) +
-  plot_G_Scurve(a=6,b=35) +
-  plot_G_linear 
-# plot_G_curves
-ggsave("plots_overall/plot_G_curves.png", width=10, height=8)
+### plot the quadratic success function
+plot_G_quadratic = 
+  tibble(x = seq(0,0.30,length.out=1000)) %>%
+  ggplot(aes(x=x)) +
+  xlab("y") + ylab("g") +
+  labs(
+    title="polynomial outcome value function",
+    subtitle = paste0("g(y) = y^6")
+  ) +
+  theme(
+    plot.subtitle = element_text(size=15),
+  ) +
+  stat_function(
+    fun = function(y) y^6, 
+    colour = "black", geom = "point"
+  )
+plot_G_quadratic
+ggsave("plots_overall/plot_G_curve_polynomial.png", width=5, height=4)
+
+# plot_G_curves = 
+#   plot_G_step(q=0.10) +
+#   plot_G_Scurve(a=5,b=60) +
+#   plot_G_Scurve(a=6,b=35) +
+#   plot_G_linear 
+# # plot_G_curves
+# ggsave("plots_overall/plot_G_curves.png", width=10, height=8)
 
 #############################################################
-### G `GM value` function value curves V_G(x) = E[G(Y)|x] ###
+### G `GM value` function value curves V_G(x) = E[g(y)|x] ###
 #############################################################
 
 ### posterior summary of beta shape parameters and bust probability
@@ -723,7 +883,7 @@ df_post_summary_shapeparams =
   relocate(cost, .after = draft_pick)
 df_post_summary_shapeparams
 
-### G(y)•f(y|x) OR G(y-cost)•f(y|x)
+### g(y)•f(y|x) OR G(y-cost)•f(y|x)
 G_times_density <- function(bust_prob, shape1, shape2, cost, G_func, surplus=FALSE) {
   function(y) {
     density_y =  ifelse(
@@ -761,41 +921,93 @@ G_times_density <- function(bust_prob, shape1, shape2, cost, G_func, surplus=FAL
   # func
 }
 
-### get dataframe of V_G(x) = E[G(Y)|x] = ∫ G(y)•f(y|x) dy
+### get dataframe of V_G(x) = E[g(y)|x] = ∫ g(y)•f(y|x) dy
 ### over each value of x
 get_df_V_G <- function(
-    G_func, desc="", surplus=FALSE, printme=TRUE
-  ) {
+    G_func, desc="", surplus=FALSE, printme=TRUE, SE=FALSE
+) {
   V_G <- function(x) {
     if (printme) print(paste0("computing V_G(x) for draft pick x = ", x))
     dfx = df_post_summary_shapeparams %>% filter(draft_pick == x)
     dfx
     integrand_x = G_times_density(
-      bust_prob=dfx$M_bust_prob, 
-      shape1=dfx$M_shape1, shape2=dfx$M_shape2, 
-      cost = dfx$cost,
-      G_func=G_func,
-      surplus=surplus
+      bust_prob=dfx$M_bust_prob, shape1=dfx$M_shape1, shape2=dfx$M_shape2, cost = dfx$cost,
+      G_func=G_func, surplus=surplus
     )
-    int_ = integrate(integrand_x, lower = 0, upper = 1)
-    if (printme) print(int_)
-    int_$value
+    int_x = integrate(integrand_x, lower = 0, upper = 1)
+    if (printme) print(int_x)
+    
+    if (SE) {
+      integrand_xL = G_times_density(
+        bust_prob=dfx$L_bust_prob, shape1=dfx$L_shape1, shape2=dfx$L_shape2, cost = dfx$cost,
+        G_func=G_func, surplus=surplus
+      )
+      integrand_xU = G_times_density(
+        bust_prob=dfx$U_bust_prob, shape1=dfx$U_shape1, shape2=dfx$U_shape2, cost = dfx$cost,
+        G_func=G_func, surplus=surplus
+      )
+      int_xL = integrate(integrand_xL, lower = 0, upper = 1)
+      int_xU = integrate(integrand_xU, lower = 0, upper = 1)
+      return( sort(c(int_xL$value, int_x$value, int_xU$value)) )
+    } else {
+      return( int_x$value )
+    }
   }
   df_V_G = tibble(draft_pick = 1:256)
+  # browser()
   V_G_values = sapply(df_V_G$draft_pick, V_G)
-  df_V_G$V_G = V_G_values
-  df_V_G = df_V_G %>% mutate(
-    V_G1 = V_G/first(V_G),
-    desc = desc,
-    surplus = surplus,
-  )
+  if (SE) {
+    V_G_values
+    temp = as_tibble(t(V_G_values))
+    names(temp) = paste0("V_G", c("_L", "", "_U"))
+    df_V_G = bind_cols(df_V_G, temp)
+    df_V_G = df_V_G %>% mutate(
+      V_G_L1 = V_G_L/first(V_G_L),
+      V_G1 = V_G/first(V_G),
+      V_G_U1 = V_G_U/first(V_G_U),
+    )
+  } else {
+    df_V_G$V_G = V_G_values
+    df_V_G = df_V_G %>% mutate(V_G1 = V_G/first(V_G))
+  }
+  df_V_G = df_V_G %>% mutate(desc = desc, surplus = surplus)
   df_V_G
 }
 
-### get V_G(x) for 1 function G(y) = 1
+# get_df_V_G(
+#   G_func=function(y) { y }, SE=T
+# )
+
+# get_df_V_G <- function(
+#     G_func, desc="", surplus=FALSE, printme=TRUE
+#   ) {
+#   V_G <- function(x) {
+#     if (printme) print(paste0("computing V_G(x) for draft pick x = ", x))
+#     dfx = df_post_summary_shapeparams %>% filter(draft_pick == x)
+#     dfx
+#     integrand_x = G_times_density(
+#       bust_prob=dfx$M_bust_prob, shape1=dfx$M_shape1, shape2=dfx$M_shape2, cost = dfx$cost,
+#       G_func=G_func, surplus=surplus
+#     )
+#     int_ = integrate(integrand_x, lower = 0, upper = 1)
+#     if (printme) print(int_)
+#     int_$value
+#   }
+#   df_V_G = tibble(draft_pick = 1:256)
+#   V_G_values = sapply(df_V_G$draft_pick, V_G)
+#   df_V_G$V_G = V_G_values
+#   df_V_G = df_V_G %>% mutate(
+#     V_G1 = V_G/first(V_G),
+#     desc = desc,
+#     surplus = surplus,
+#   )
+#   df_V_G
+# }
+
+### get V_G(x) for 1 function g(y) = 1
 df_V_G_1f = get_df_V_G(
   G_func=function(y) { 1 },
-  desc=paste0("G(y) = 1")
+  desc=paste0("g(y) = 1")
 )
 df_V_G_1f
 ### all values should be 1 (integrates to 1)
@@ -803,17 +1015,17 @@ mean(abs(df_V_G_1f$V_G))
 # max(abs(df_V_G_1f$V_G))
 # hist(df_V_G_1f$V_G)
 
-### get V_G(x) for identity function G(y) = y
+### get V_G(x) for identity function g(y) = y
 df_V_G_id = get_df_V_G(
   G_func=function(y) { y }, 
-  desc=paste0("G(y) = y")
+  desc=paste0("g(y) = y")
 )
 df_V_G_id
 
 ### check that V_id(x) matches E(y|x)
 df_plot_G_id_perfv = 
   bind_rows(
-    df_V_G_id %>% mutate(desc = paste0("\nE[G(Y)|x], ", desc, "\n"))
+    df_V_G_id %>% mutate(desc = paste0("\nE[g(y)|x], ", desc, "\n"))
     ,
     df_post_summary_perf_EV %>%
       select(draft_pick, perf_EV_M, perf_EV1_M) %>%
@@ -830,18 +1042,26 @@ df_plot_G_id_perfv %>%
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
-### get V_G(x) for step function G(y) = 1{y>r}
+### get V_G(x) for step function g(y) = 1{y>r}
 q_ = 0.10
 df_V_G_step = get_df_V_G(
   G_func=G_step_func(q=q_), 
-  desc=paste0("G(y) = 1{y>",q_,"}")
+  desc=paste0("g(y) = 1{y>",q_,"}")
   # desc=paste0("E[1{Y>",q_,"}|x]")
 )
 df_V_G_step
 
+q_ = 0.15
+df_V_G_step1 = get_df_V_G(
+  G_func=G_step_func(q=q_), 
+  desc=paste0("g(y) = 1{y>",q_,"}")
+  # desc=paste0("E[1{Y>",q_,"}|x]")
+)
+df_V_G_step1
+
 ### check that V_G(x) matches P(y>r|x)
 df_V_G_step %>%
-  mutate(desc = paste0("E[G(Y)|x],\n", desc,"\n")) %>%
+  mutate(desc = paste0("E[g(y)|x],\n", desc,"\n")) %>%
   bind_rows(
     df_post_summary_tail_prob %>%
       filter(q == q_) %>%
@@ -857,13 +1077,14 @@ df_V_G_step %>%
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 
 ### get V_G(x) for G curve function 
-get_df_V_G_Scurve <- function(a,b,surplus=FALSE,printme=TRUE) {
+get_df_V_G_Scurve <- function(a,b,surplus=FALSE,printme=TRUE,SE=FALSE) {
   get_df_V_G(
     G_func=G_Scurve_func(a,b),
-    # desc = paste0("E[G(Y)|x] ", ", ", betaCdfStr(a,b))
+    # desc = paste0("E[g(y)|x] ", ", ", betaCdfStr(a,b))
     desc = betaCdfStr(a,b),
     surplus = surplus,
-    printme=printme
+    printme=printme,
+    SE=SE
   )
 }
 df_V_G_Scurve_1 = get_df_V_G_Scurve(a=6, b=35)
@@ -871,13 +1092,42 @@ df_V_G_Scurve_1
 df_V_G_Scurve_2 = get_df_V_G_Scurve(a=5, b=60)
 df_V_G_Scurve_2
 
+### get V_G(x) for quadratic function g(y) = y^2
+df_V_G_poly = get_df_V_G(
+  G_func=function(y) { y^6 }, 
+  desc=paste0("g(y) = y^6")
+)
+df_V_G_poly
+
 ### visualize V_G(x)
 df_plot_V_G = 
   bind_rows(
-    df_V_G_Scurve_1,
-    df_V_G_Scurve_2,
-    df_V_G_step,
-    df_V_G_id
+    df_V_G_Scurve_1 %>% 
+      mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
+    ,
+    df_V_G_Scurve_2 %>% 
+      mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
+    ,
+    df_V_G_step %>% 
+      mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
+    ,
+    df_V_G_step1 %>% 
+      mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
+    ,
+    # df_V_G_id %>% 
+    #   mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
+    # ,
+    # df_V_G_poly %>% 
+    #   mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
+    # ,
+    df_post_summary_perf_EV %>%
+      select(draft_pick, compensation_v1) %>%
+      rename(V_G1 = compensation_v1) %>%
+      mutate(desc = "compensation\n"),
+    df_jj %>% rename(V_G1 = jj_v1) %>% mutate(desc = "Jimmy Johnson\n")
+    ,
+    df_trade_market_weibull %>% 
+      mutate(desc = paste0("\n", desc, "\n"))
   ) %>%
   select(-V_G) 
 df_plot_V_G
@@ -885,66 +1135,68 @@ df_plot_V_G
 ###
 plot_VG = 
   df_plot_V_G %>%
-  filter(draft_pick < 255) %>%
+  # filter(draft_pick < 255) %>%
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
-  geom_line(linewidth=1) +
-  # scale_color_brewer(name="V(x) = E[G(Y)|x]", palette = "Set1") +
-  scale_color_brewer(name=bquote(paste('V'['G']*'(x) = E[G(Y)|x]')), palette = "Set1") +
+  geom_line(linewidth=2) +
+  # scale_color_brewer(name="V(x) = E[g(y)|x]", palette = "Set1") +
+  scale_color_brewer(
+    name="",
+    # name=bquote(paste('v'['g']*'(x) = E[g(Y)|x]/E[g(Y)|x=1]')),
+    # palette = "Set1"
+    palette = "Set2"
+  ) +
   ylab("value relative to first pick") +
   xlab("draft pick") +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_VG
-ggsave("plots_overall/plot_G_valueCurves.png",width=10,height=5)
+ggsave("plots_overall/plot_G_valueCurves.png",width=12,height=6)
 
-### visualize V_G(x)
-df_plot_V_G_A = 
-  bind_rows(
-    df_V_G_id
-    ,
-    df_V_G_Scurve_1
-    ,
-    # df_plot_V_G %>%
-    #   # mutate(desc = paste0("V(x) = E[G(Y)|x]/E[G(Y)|x=1],\n", desc,"\n"))
-    #   # mutate(desc = bquote(paste('V'['G']*'(x) = ,', desc, '\n')))
-    #   # mutate(desc = paste0('V_G(x) = ,', desc, '\n'))
-    #   # mutate(desc = paste0('V_G(x),', desc))
-    #   # mutate(desc = latex2exp::TeX("$V_G(x)$"))
-    #   mutate(desc = desc) 
-    # ,
-    df_post_summary_perf_EV %>% 
-      select(draft_pick, compensation_v1) %>%
-      rename(V_G1 = compensation_v1) %>%
-      mutate(desc = "compensation")
-    ,
-    df_jj %>% rename(V_G1 = jj_v1) %>% mutate(desc = "Jimmy Johnson")
-    ,
-    df_trade_market_weibull %>%
-      filter(str_detect(m, "with\n")) %>%
-      rename(draft_pick = t, V_G1 = v_M) %>%
-      select(draft_pick, V_G1) %>%
-      mutate(desc = "weibull")
-  )
-df_plot_V_G_A
-
-plot_VG1 = 
-  df_plot_V_G_A %>%
-  filter(draft_pick < 255) %>%
-  ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
-  geom_line(linewidth=1) +
-  # scale_color_brewer(name="V(x) = E[G(Y)|x]", palette = "Set1") +
-  scale_color_brewer(
-    # name="", 
-    name=bquote(paste('V'['G']*'(x) = E[G(Y)|x]/E[G(Y)|x=1]')),
-    palette = "Set2"
-  ) +
-  # labs(subtitle = bquote(paste('V'['G']*'(x) = E[G(Y)|x]/E[G(Y)|x=1]'))) +
-  ylab("value relative to first pick") +
-  xlab("draft pick") +
-  scale_y_continuous(limits=c(0,1)) +
-  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
-# plot_VG1
-ggsave("plots_overall/plot_G_valueCurves1.png",width=10,height=5)
+# ### visualize V_G(x)
+# df_plot_V_G_A = 
+#   bind_rows(
+#     df_V_G_id
+#     ,
+#     df_V_G_Scurve_1
+#     ,
+#     # df_plot_V_G %>%
+#     #   # mutate(desc = paste0("V(x) = E[g(y)|x]/E[g(y)|x=1],\n", desc,"\n"))
+#     #   # mutate(desc = bquote(paste('V'['G']*'(x) = ,', desc, '\n')))
+#     #   # mutate(desc = paste0('V_G(x) = ,', desc, '\n'))
+#     #   # mutate(desc = paste0('V_G(x),', desc))
+#     #   # mutate(desc = latex2exp::TeX("$V_G(x)$"))
+#     #   mutate(desc = desc) 
+#     # ,
+#     df_jj %>% rename(V_G1 = jj_v1) %>% mutate(desc = "Jimmy Johnson")
+#     ,
+#     df_trade_market_weibull
+#     # ,
+#     # df_post_summary_perf_EV %>% 
+#     #   select(draft_pick, compensation_v1) %>%
+#     #   rename(V_G1 = compensation_v1) %>%
+#     #   mutate(desc = "compensation")
+#   )
+# df_plot_V_G_A
+# 
+# plot_VG1 = 
+#   df_plot_V_G_A %>%
+#   filter(draft_pick < 255) %>%
+#   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
+#   geom_line(linewidth=2) +
+#   # scale_color_brewer(name="V(x) = E[g(y)|x]", palette = "Set1") +
+#   scale_color_brewer(
+#     # name="", 
+#     name=bquote(paste('V'['G']*'(x) = E[g(y)|x]/E[g(y)|x=1]')),
+#     palette = "Set1"
+#     # palette = "Set2"
+#   ) +
+#   # labs(subtitle = bquote(paste('V'['G']*'(x) = E[g(y)|x]/E[g(y)|x=1]'))) +
+#   ylab("value relative to first pick") +
+#   xlab("draft pick") +
+#   scale_y_continuous(limits=c(0,1)) +
+#   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# # plot_VG1
+# ggsave("plots_overall/plot_G_valueCurves1.png",width=10,height=5)
 
 ###########################################
 ### Accounting for cost: surplus curves ###
@@ -1003,68 +1255,79 @@ plot_post_surplus_density_rdsall =
 # plot_post_surplus_density_rdsall
 ggsave("plots_overall/plot_post_surplus_density_rdsall.png", width=7, height=5)
 
-### get V_G(x) for 1 function G(y) = 1
+### get V_G(x) for 1 function g(y) = 1
 df_V_G_1fs = get_df_V_G(
   G_func=function(y) { 1 },
-  desc=paste0("G(y) = 1"),
+  desc=paste0("g(y) = 1"),
   surplus = TRUE
 )
 df_V_G_1fs
 ### all values should be 1 (integrates to 1)
 mean(abs(df_V_G_1fs$V_G))
 
-### get V_G(x) for various GM value functions G(y)
+### get V_G(x) for various GM value functions g(y)
 q_ = 0.10
-df_V_G_step_S = get_df_V_G(
-  G_func=G_step_func(q=q_), desc=paste0("G(y) = 1{y>",q_,"}"), surplus = TRUE
+df_V_G_step_S1 = get_df_V_G(
+  G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus = TRUE
 )
-df_V_G_step_S
+df_V_G_step_S1
+q_ = 0.15
+df_V_G_step_S2 = get_df_V_G(
+  G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus = TRUE
+)
+df_V_G_step_S2
 df_V_G_Scurve_1_S = get_df_V_G_Scurve(a=6, b=35, surplus = TRUE)
 df_V_G_Scurve_1_S
 df_V_G_Scurve_2_S = get_df_V_G_Scurve(a=5, b=60, surplus = TRUE)
 df_V_G_Scurve_2_S
 df_V_G_id_S = get_df_V_G(
-  G_func=function(y) { y }, desc=paste0("G(y) = y"), surplus = TRUE
+  G_func=function(y) { y }, desc=paste0("g(y) = y"), surplus = TRUE
 )
 df_V_G_id_S
 
 ### visualize 
-df_plot_V_G_S = 
-  bind_rows(
-    df_V_G_Scurve_1_S,
-    df_V_G_Scurve_2_S,
-    df_V_G_step_S,
-    df_V_G_id_S
-  ) %>%
-  select(-V_G) 
-df_plot_V_G_S
 
-plot_V_G_S = 
-  df_plot_V_G_S %>%
-  filter(draft_pick < 255) %>%
-  ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
-  geom_line(linewidth=1) +
-  scale_color_brewer(name=bquote(paste('SV'['G']*'(x) = E[G(Y-cost)|x]')), palette = "Set1") +
-  ylab("surplus value relative to first pick") +
-  xlab("draft pick") +
-  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# df_plot_V_G_S = 
+#   bind_rows(
+#     df_V_G_Scurve_1_S,
+#     df_V_G_Scurve_2_S,
+#     df_V_G_step_S1,
+#     df_V_G_id_S
+#   ) %>%
+#   select(-V_G) 
+# df_plot_V_G_S
+# 
+# plot_V_G_S = 
+#   df_plot_V_G_S %>%
+#   filter(draft_pick < 255) %>%
+#   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
+#   geom_line(linewidth=2) +
+#   scale_color_brewer(name=bquote(paste('SV'['G']*'(x) = E[g(Y-cost)|x]')), palette = "Set1") +
+#   ylab("surplus value relative to first pick") +
+#   xlab("draft pick") +
+#   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_V_G_S
-ggsave("plots_overall/plot_G_surplusValueCurves.png",width=10,height=5)
+# ggsave("plots_overall/plot_G_surplusValueCurves0.png",width=10,height=5)
 
 df_plot_V_G_S_A = 
   bind_rows(
     df_V_G_Scurve_1 %>%
-      mutate(desc = paste0("V(G)(y), ", desc))
+      mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
     ,
-    df_V_G_Scurve_1_S %>% mutate(desc = paste0("SV(G)(y), ", desc))
+    df_V_G_Scurve_1_S %>% 
+      mutate(desc = paste0("E[g(S)|x]/E[g(S)|x=1],\n", desc, "\n"))
     ,
-    df_plot_V_G %>%
-      filter(str_detect(desc, "= y")) %>%
-      mutate(desc = paste0("V(G)(y), ", desc))
+    df_V_G_id %>%
+      mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
     ,
-    df_plot_V_G_S %>%
-      filter(str_detect(desc, "= y")) %>%
-      mutate(desc = paste0("SV(G)(y), ", desc))
+    df_V_G_id_S %>%
+      mutate(desc = paste0("E[g(S)|x]/E[g(S)|x=1],\n", desc, "\n"))
+    ,
+    df_V_G_step_S2 %>%
+      mutate(desc = paste0("E[g(S)|x]/E[g(S)|x=1],\n", desc, "\n"))
+    ,
+    df_V_G_step1 %>%
+      mutate(desc = paste0("E[g(Y)|x]/E[g(Y)|x=1],\n", desc, "\n"))
     ,
     # df_post_summary_perf_EV %>% 
     #   select(draft_pick, compensation_v1) %>%
@@ -1073,33 +1336,66 @@ df_plot_V_G_S_A =
     # ,
     df_jj %>% rename(V_G1 = jj_v1) %>% mutate(desc = "Jimmy Johnson")
     ,
-    # df_trade_market_weibull %>%
-    #   filter(str_detect(m, "with\n")) %>%
-    #   rename(draft_pick = t, V_G1 = v_M) %>%
-    #   select(draft_pick, V_G1) %>%
-    #   mutate(desc = "weibull")
+    # df_trade_market_weibull
   )
 df_plot_V_G_S_A
 
 plot_V_G_S_A = 
   df_plot_V_G_S_A %>%
-  filter(draft_pick < 255) %>%
+  # filter(draft_pick < 255) %>%
   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
-  geom_line(linewidth=1) +
-  # scale_color_brewer(name="V(x) = E[G(Y)|x]", palette = "Set1") +
+  geom_line(linewidth=2) +
+  # scale_color_brewer(name="V(x) = E[g(y)|x]", palette = "Set1") +
   scale_color_brewer(
     name="",
-    # name=bquote(paste('V'['G']*'(x) = E[G(Y)|x]/E[G(Y)|x=1]')),
+    # name=bquote(paste('V'['G']*'(x) = E[g(y)|x]/E[g(y)|x=1]')),
+    # palette = "Set1"
     palette = "Set2"
   ) +
-  # labs(subtitle = bquote(paste('V'['G']*'(x) = E[G(Y)|x]/E[G(Y)|x=1]'))) +
+  # labs(subtitle = bquote(paste('V'['G']*'(x) = E[g(y)|x]/E[g(y)|x=1]'))) +
   ylab("value relative to first pick") +
   xlab("draft pick") +
   # scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_V_G_S_A
-ggsave("plots_overall/plot_G_surplusValueCurves1.png",width=12,height=5)
+ggsave("plots_overall/plot_G_surplusValueCurves.png",width=12,height=6)
 
+
+### credible intervals
+df_V_G_Scurve_1_S_SE = get_df_V_G_Scurve(a=6, b=35, surplus = TRUE, SE=T)
+df_V_G_Scurve_1_S_SE
+q_ = 0.15
+df_V_G_step_S2_SE = get_df_V_G(
+  G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus = TRUE, SE=T
+)
+df_V_G_step_S2_SE
+
+
+bind_rows(
+  df_V_G_Scurve_1_S_SE
+  ,
+  df_V_G_step_S2_SE
+) %>%
+  ggplot(aes(x=draft_pick, y = V_G1, color=desc, fill=desc)) +
+  geom_line(linewidth=2) +
+  geom_ribbon(aes(ymin=V_G_L1, ymax=V_G_U1)) +
+  # scale_color_brewer(name="V(x) = E[g(y)|x]", palette = "Set1") +
+  scale_color_brewer(
+    name="",
+    # name=bquote(paste('V'['G']*'(x) = E[g(y)|x]/E[g(y)|x=1]')),
+    # palette = "Set1"
+    palette = "Set2"
+  ) +
+  scale_fill_brewer(
+    name="",
+    palette = "Set2"
+  ) +
+  # labs(subtitle = bquote(paste('V'['G']*'(x) = E[g(y)|x]/E[g(y)|x=1]'))) +
+  ylab("value relative to first pick") +
+  xlab("draft pick") +
+  # scale_y_continuous(limits=c(0,1)) +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+  
 
 ############################################################
 ### Best fitting G function to the observed trade market ###
