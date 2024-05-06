@@ -165,8 +165,12 @@ plot_cond_density <- function(ex_draft_picks, saveMe=F) {
     players_2C %>% 
     select(draft_pick, apy_cap_pct_2C) %>%
     filter(draft_pick %in% ex_draft_picks) %>%
+    mutate(
+      draft_pick_x = paste0("x = ", draft_pick),
+      draft_pick_x = fct_reorder(draft_pick_x, draft_pick),
+    ) %>%
     ggplot() +
-    facet_wrap(~ draft_pick) +
+    facet_wrap(~ draft_pick_x) +
     xlab("apy cap pct") +
     ylab("density") +
     # labs(title = "conditional density") +

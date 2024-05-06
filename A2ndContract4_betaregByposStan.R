@@ -122,6 +122,19 @@ vec_rhats1
 all(vec_rhats1 < 1.1)
 # hist(vec_rhats1)
 
+###############################################
+### how much data is in each position group ###
+###############################################
+
+### positions
+table(df_train$pos)
+
+###
+df_train %>%
+  group_by(pos) %>%
+  summarise(count=n()) %>%
+  summarise(min(count), median(count), max(count), )
+
 #############################
 ### get posterior samples ###
 #############################
@@ -220,7 +233,7 @@ plot_condMeanWithEmp_byPos =
   geom_line(aes(y = mu_M), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
   labs(
-    title = "conditional mean \U03BC(x,pos) = E[Y|x,pos]",
+    title = "estimated \U03BC(x,pos)",
     subtitle="given not a bust"
   ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
@@ -237,7 +250,7 @@ plot_condSdWithEmp_byPos =
   geom_line(aes(y = sd_M), linewidth=1) +
   xlab("draft pick") + ylab("apy cap pct") +
   labs(
-    title = "conditional standard deviation sd(x,pos)",
+    title = "estimated sd(x,pos)",
     subtitle="given not a bust"
   ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
@@ -252,7 +265,7 @@ plot_condBustProbWithEmp_byPos =
   geom_ribbon(aes(ymin = bust_prob_L, ymax = bust_prob_U), fill="gray60", alpha=0.6) +
   geom_line(aes(y = bust_prob_M), linewidth=1) +
   xlab("draft pick") + ylab("probability") +
-  labs(title = "conditional bust probability bp(x,pos)") +
+  labs(title = "estimated bp(x,pos)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 ggsave("plots_byPos/plot_empWithCondBustProb_byPos.png", width=12, height=8)
 
@@ -269,17 +282,23 @@ plot_condLines_byPos =
   df_plot_musdbp_0 %>%
   filter(param %in% c("mu", "sd", "bust_prob")) %>%
   mutate(
+    ordering = case_when(
+      param == "mu" ~ 1,
+      param == "sd" ~ 2,
+      param == "bust_prob" ~ 3,
+    ),
     param = case_when(
-      param == "bust_prob" ~ "bust probability bp(x,pos)",
-      param == "mu" ~ "conditional mean \U03BC(x,pos)",
-      param == "sd" ~ "conditional s.d. sd(x,pos)",
+      param == "bust_prob" ~ "estimated bp(x,pos)",
+      param == "mu" ~ "estimated \U03BC(x,pos)",
+      param == "sd" ~ "estimated sd(x,pos)",
       TRUE ~ ""
-    )
+    ),
+    param = fct_reorder(param, ordering)
   ) %>%
   ggplot(aes(x=draft_pick, y=value_M, color=pos)) + 
   facet_wrap(~param, scales = "free_y") +
   geom_line(aes(linetype=QB), linewidth=1) +
-  xlab("draft pick") + ylab("probability") +
+  xlab("draft pick") + ylab("") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 ggsave("plots_byPos/plot_condLines_byPos.png", width=18, height=5)
 
@@ -288,18 +307,24 @@ plot_condLinesSE_byPos =
   df_plot_musdbp_0 %>%
   filter(param %in% c("mu", "sd", "bust_prob")) %>%
   mutate(
+    ordering = case_when(
+      param == "mu" ~ 1,
+      param == "sd" ~ 2,
+      param == "bust_prob" ~ 3,
+    ),
     param = case_when(
-      param == "bust_prob" ~ "bust probability bp(x,pos)",
-      param == "mu" ~ "conditional mean \U03BC(x,pos)",
-      param == "sd" ~ "conditional s.d. sd(x,pos)",
+      param == "bust_prob" ~ "estimated bp(x,pos)",
+      param == "mu" ~ "estimated \U03BC(x,pos)",
+      param == "sd" ~ "estimated sd(x,pos)",
       TRUE ~ ""
-    )
+    ),
+    param = fct_reorder(param, ordering)
   ) %>%
   ggplot(aes(x=draft_pick, y=value_M, color=pos, fill=pos)) + 
   geom_ribbon(aes(ymin = value_L, ymax = value_U), alpha=0.6) +
   facet_wrap(~param, scales = "free_y") +
   geom_line(aes(linetype=QB), linewidth=1) +
-  xlab("draft pick") + ylab("probability") +
+  xlab("draft pick") + ylab("") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 ggsave("plots_byPos/plot_condLinesSE_byPos.png", width=18, height=5)
 
@@ -338,11 +363,25 @@ df_post_vals_byQB_0
 plot_condLinesSE_byQB = 
   df_post_vals_byQB_0 %>%
   filter(param %in% c("mu", "sd", "bust_prob")) %>%
+  mutate(
+    ordering = case_when(
+      param == "mu" ~ 1,
+      param == "sd" ~ 2,
+      param == "bust_prob" ~ 3,
+    ),
+    param = case_when(
+      param == "bust_prob" ~ "estimated bp(x,pos)",
+      param == "mu" ~ "estimated \U03BC(x,pos)",
+      param == "sd" ~ "estimated sd(x,pos)",
+      TRUE ~ ""
+    ),
+    param = fct_reorder(param, ordering)
+  ) %>%
   ggplot(aes(x=draft_pick, y=value_M, color=QB, fill=QB)) + 
   geom_ribbon(aes(ymin = value_L, ymax = value_U), alpha=0.6) +
   facet_wrap(~param, scales = "free_y") +
   geom_line(aes(linetype=QB), linewidth=1) +
-  xlab("draft pick") + ylab("probability") +
+  xlab("draft pick") + ylab("") +
   scale_fill_brewer(palette = "Set1") +
   scale_color_brewer(palette = "Set1") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
@@ -359,12 +398,15 @@ y_grid
 get_density_df_byQB <- function(y) {
   print(paste0("computing density for y=",y))
   df_post_vals_byQB %>% 
-    select(draft_pick, QB, all_of(starts_with("shape"))) %>% 
+    select(draft_pick, QB, all_of(starts_with("shape")), all_of(starts_with("bust_prob")),) %>% 
     mutate(
       y = y,
       density_L = dbeta(y, shape1_L, shape2_L),
       density_M = dbeta(y, shape1_M, shape2_M),
       density_U = dbeta(y, shape1_U, shape2_U),
+      density_times_bp_L = density_L*bust_prob_L,
+      density_times_bp_M = density_M*bust_prob_M,
+      density_times_bp_U = density_U*bust_prob_U,
     ) 
 }
 
@@ -375,41 +417,78 @@ df_post_summary_density = bind_rows(lapply(y_grid, get_density_df_byQB))
 df_post_summary_density
 
 ### plot posterior conditional density
-plot_post_density_rd1 = 
+plot_post_density_full_rd1 = 
   df_post_summary_density %>%
   filter(draft_pick %in% c(seq(1,32,by=2))) %>%
-  ggplot(aes(x=y, color=factor(draft_pick))) +
-  geom_line(aes(y=density_M), linewidth=1) +
+  ggplot(aes(x=y, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+  geom_line(aes(y=density_times_bp_M), linewidth=1) +
   facet_wrap(~QB) +
   xlab("apy cap pct") +
   ylab("density") +
-  labs(title = "density (given not a bust)") +
+  labs(title = "density of performance outcome Y") +
   scale_color_discrete(name = "draft pick") +
   theme(
     axis.text.x = element_text(size = 10),
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
-# plot_post_density_rd1
-ggsave("plots_byPos/plot_post_density_rd1_byQB.png", width=11, height=5)
+# plot_post_density_full_rd1
+ggsave("plots_byPos/plot_post_density_full_rd1_byQB.png", width=11, height=5)
 
-plot_post_density_rdsall = 
+plot_post_density_full_rdsall = 
   df_post_summary_density %>%
   filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
-  ggplot(aes(x=y, color=factor(draft_pick))) +
-  geom_line(aes(y=density_M), linewidth=1) +
+  ggplot(aes(x=y, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+  geom_line(aes(y=density_times_bp_M), linewidth=1) +
   facet_wrap(~QB) +
   xlab("apy cap pct") +
   ylab("density") +
-  labs(title = "density (given not a bust)") +
+  labs(title = "density of performance outcome Y") +
   scale_color_discrete(name = "draft pick") +
   theme(
     axis.text.x = element_text(size = 10),
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
-# plot_post_density_rdsall
-ggsave("plots_byPos/plot_post_density_rdsall_byQB.png", width=11, height=5)
+# plot_post_density_full_rdsall
+ggsave("plots_byPos/plot_post_density_full_rdsall_byQB.png", width=11, height=5)
+
+# ### plot posterior conditional density
+# plot_post_density_rd1 = 
+#   df_post_summary_density %>%
+#   filter(draft_pick %in% c(seq(1,32,by=2))) %>%
+#   ggplot(aes(x=y, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+#   geom_line(aes(y=density_M), linewidth=1) +
+#   facet_wrap(~QB) +
+#   xlab("apy cap pct") +
+#   ylab("density") +
+#   labs(title = "density (given not a bust)") +
+#   scale_color_discrete(name = "draft pick") +
+#   theme(
+#     axis.text.x = element_text(size = 10),
+#     axis.text.y=element_blank(),
+#     axis.ticks.y=element_blank()
+#   ) 
+# # plot_post_density_rd1
+# ggsave("plots_byPos/plot_post_density_rd1_byQB.png", width=11, height=5)
+
+# plot_post_density_rdsall = 
+#   df_post_summary_density %>%
+#   filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
+#   ggplot(aes(x=y, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+#   geom_line(aes(y=density_M), linewidth=1) +
+#   facet_wrap(~QB) +
+#   xlab("apy cap pct") +
+#   ylab("density") +
+#   labs(title = "density (given not a bust)") +
+#   scale_color_discrete(name = "draft pick") +
+#   theme(
+#     axis.text.x = element_text(size = 10),
+#     axis.text.y=element_blank(),
+#     axis.ticks.y=element_blank()
+#   ) 
+# # plot_post_density_rdsall
+# ggsave("plots_byPos/plot_post_density_rdsall_byQB.png", width=11, height=5)
 
 ###################################################################
 ### G `GM value` function value curves V_G(x,QB) = E[G(Y)|x,QB] ###
@@ -572,41 +651,78 @@ df_post_summary_density_surplus =
 df_post_summary_density_surplus
 
 ### plot posterior conditional density
-plot_post_surplus_density_rd1 = 
+plot_post_surplus_density_full_rd1 = 
   df_post_summary_density_surplus %>%
   filter(draft_pick %in% c(seq(1,32,by=2))) %>%
-  ggplot(aes(x=s, color=factor(draft_pick))) +
-  geom_line(aes(y=density_M), linewidth=1) +
+  ggplot(aes(x=s, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+  geom_line(aes(y=density_times_bp_M), linewidth=1) +
   facet_wrap(~QB) +
   xlab("apy cap pct") +
   ylab("density") +
-  labs(title = "surplus density (given not a bust)") +
+  labs(title = "density of surplus S") +
   scale_color_discrete(name = "draft pick") +
   theme(
     axis.text.x = element_text(size = 10),
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
-# plot_post_surplus_density_rd1
-ggsave("plots_byPos/plot_post_surplus_density_rd1_byQB.png", width=11, height=5)
+# plot_post_surplus_density_full_rd1
+ggsave("plots_byPos/plot_post_surplus_density_full_rd1_byQB.png", width=11, height=5)
 
 ### plot posterior conditional density
-plot_post_surplus_density_rdsall = 
+plot_post_surplus_density_full_rdsall = 
   df_post_summary_density_surplus %>%
   filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
-  ggplot(aes(x=s, color=factor(draft_pick))) +
-  geom_line(aes(y=density_M), linewidth=1) +
+  ggplot(aes(x=s, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+  geom_line(aes(y=density_times_bp_M), linewidth=1) +
   facet_wrap(~QB) +
   xlab("apy cap pct") +
   ylab("density") +
-  labs(title = "surplus density (given not a bust)") +
+  labs(title = "density of surplus S") +
   scale_color_discrete(name = "draft pick") +
   theme(
     axis.text.x = element_text(size = 10),
     axis.text.y=element_blank(),
     axis.ticks.y=element_blank()
   ) 
-ggsave("plots_byPos/plot_post_surplus_density_rdsall_byQB.png", width=11, height=5)
+ggsave("plots_byPos/plot_post_surplus_density_full_rdsall_byQB.png", width=11, height=5)
+
+# ### plot posterior conditional density
+# plot_post_surplus_density_rd1 = 
+#   df_post_summary_density_surplus %>%
+#   filter(draft_pick %in% c(seq(1,32,by=2))) %>%
+#   ggplot(aes(x=s, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+#   geom_line(aes(y=density_M), linewidth=1) +
+#   facet_wrap(~QB) +
+#   xlab("apy cap pct") +
+#   ylab("density") +
+#   labs(title = "surplus density (given not a bust)") +
+#   scale_color_discrete(name = "draft pick") +
+#   theme(
+#     axis.text.x = element_text(size = 10),
+#     axis.text.y=element_blank(),
+#     axis.ticks.y=element_blank()
+#   ) 
+# # plot_post_surplus_density_rd1
+# ggsave("plots_byPos/plot_post_surplus_density_rd1_byQB.png", width=11, height=5)
+# 
+# ### plot posterior conditional density
+# plot_post_surplus_density_rdsall = 
+#   df_post_summary_density_surplus %>%
+#   filter(draft_pick %in% c(seq(1,32*7,by=32/2))) %>%
+#   ggplot(aes(x=s, color=fct_reorder(factor(draft_pick), -draft_pick))) +
+#   geom_line(aes(y=density_M), linewidth=1) +
+#   facet_wrap(~QB) +
+#   xlab("apy cap pct") +
+#   ylab("density") +
+#   labs(title = "surplus density (given not a bust)") +
+#   scale_color_discrete(name = "draft pick") +
+#   theme(
+#     axis.text.x = element_text(size = 10),
+#     axis.text.y=element_blank(),
+#     axis.ticks.y=element_blank()
+#   ) 
+# ggsave("plots_byPos/plot_post_surplus_density_rdsall_byQB.png", width=11, height=5)
 
 ### get V_G(x) for 1 function G(y) = 1
 df_V_G_1fs = get_df_V_G_QB(G_func=function(y) { 1 }, desc=paste0("g(y) = 1"), surplus=TRUE)
