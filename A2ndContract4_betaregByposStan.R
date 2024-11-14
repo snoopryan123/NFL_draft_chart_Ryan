@@ -166,9 +166,15 @@ df_post_vals_byPos_0 =
   mutate(
     shape1 = mu*phi,
     shape2 = (1-mu)*phi,
-    sd = sqrt(mu*(1-mu)/(1+phi))
+    sd = sqrt(mu*(1-mu)/(1+phi)),
+    med = ifelse(
+      0.5 - bust_prob > 0, ### median_in_tail
+      qbeta(0.5 - bust_prob, shape1, shape2), ### median assuming the bust spike is uniform
+      0.5 * bust_cutoff / bust_prob ### median of the bust spike
+    ),
   ) 
 df_post_vals_byPos_0
+sum(is.na(df_post_vals_byPos_0))
 
 df_post_vals_byPos = 
   df_post_vals_byPos_0 %>%
@@ -387,6 +393,59 @@ plot_condLinesSE_byQB =
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 ggsave("plots_byPos/plot_condLinesSE_byQB.png", width=18, height=5)
 
+###############################
+### visualize median(x,pos) ###
+###############################
+
+df_summary_med_byQB = 
+  df_post_vals_byQB %>%
+  select(draft_pick, QB, all_of(starts_with("med")), all_of(starts_with("mu"))) %>%
+  left_join(compensation_1C) %>%
+  rename(compensation_M = rookie_contract_cap_pct) %>%
+  pivot_longer(-c("draft_pick","QB")) %>%
+  filter(name != "compensation_v1") %>%
+  mutate(
+    quantity = str_remove_all(name, "_L|_L1|_M|_M1|_U|_U1"),
+    letter = str_sub(name,-1,-1),
+  ) %>%
+  mutate(
+    quantity = ifelse(quantity == "med", "median", quantity),
+    quantity = ifelse(quantity == "mu", "mean", quantity),
+  ) %>%
+  select(-name) %>%
+  group_by(quantity, letter) %>%
+  mutate(value1 = value/first(value)) %>%
+  pivot_wider(names_from = c(letter), values_from=c(value, value1)) 
+  # group_by(quantity, letter) %>%
+  # mutate(value1 = value/first(value)) %>%
+  # ungroup() %>%
+  # pivot_wider(names_from = "quantity", values_from="value") 
+df_summary_med_byQB
+
+df_summary_med_byQB %>%
+  # filter(letter=="M") %>%
+  ggplot(aes(x = draft_pick, y = value_M, color = quantity)) +
+  # geom_ribbon(aes(ymin = L, ymax = U, fill = quantity)) +
+  facet_wrap(~QB) +
+  geom_line(linewidth=2) +
+  xlab("draft pick") +
+  ylab("apy cap pct") +
+  scale_color_brewer(name = "", palette="Set1") +
+  scale_fill_brewer(name = "", palette="Set1") +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2)) 
+
+df_summary_med_byQB %>%
+  # filter(letter=="M") %>%
+  ggplot(aes(x = draft_pick, y = value1_M, color = quantity)) +
+  # geom_ribbon(aes(ymin = L, ymax = U, fill = quantity)) +
+  facet_wrap(~QB) +
+  geom_line(linewidth=2) +
+  xlab("draft pick") +
+  ylab("apy cap pct") +
+  scale_color_brewer(name = "", palette="Set1") +
+  scale_fill_brewer(name = "", palette="Set1") +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2)) 
+
 #############################################################
 ### visualize conditional density P(y | x, QB, not bust)  ###
 #############################################################
@@ -530,7 +589,7 @@ G_times_density <- function(bust_prob, shape1, shape2, cost, G_func, surplus=FAL
 ### get dataframe of V_G(x,QB) = E[G(Y)|x,QB] = ∫ G(y)•f(y|x,QB) dy
 ### over each value of x,QB
 get_df_V_G_QB <- function(
-    G_func, desc="", surplus=FALSE
+    G_func, desc="", surplus=FALSE, q=NA, type=""
 ) {
   df_V_G = as_tibble(expand.grid(draft_pick = 1:256, QB=c("QB", "not QB")))
   V_G <- function(j) {
@@ -563,6 +622,8 @@ get_df_V_G_QB <- function(
       # V_G1 = V_G/first(V_G),
       desc = desc,
       surplus = surplus,
+      q=q,
+      type=type
     )
   df_V_G
 }
@@ -574,65 +635,96 @@ df_V_G_1f
 mean(abs(df_V_G_1f$V_G))
 
 ### get V_G(x) for identity function G(y) = y
-df_V_G_id = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("g(y) = y"))
+df_V_G_id = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("g(y) = y"), type="linear")
 df_V_G_id
 
 ### get V_G(x) for step function G(y) = 1{y>r}
-q_ = 0.1
-df_V_G_step_1 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"))
+pd_ = 1
+# q_ = 0.05
+q_ = 0.075
+df_V_G_step_0 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",percent(q_,pd_),"}"),q=q_, type="step")
+df_V_G_step_0
+# q_ = 0.0833333
+q_ = 0.10
+df_V_G_step_1 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",percent(q_,pd_),"}"),q=q_, type="step")
 df_V_G_step_1
-q_ = 0.15
-df_V_G_step_2 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"))
+# q_ = 0.11666667
+q_ = 0.125
+df_V_G_step_2 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",percent(q_,pd_),"}"),q=q_, type="step")
 df_V_G_step_2
-q_ = 0.2
-df_V_G_step_3 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"))
+q_ = 0.15
+df_V_G_step_3 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",percent(q_,pd_),"}"),q=q_, type="step")
 df_V_G_step_3
+# q_ = 0.20
+# df_V_G_step_4 = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",percent(q_,0),"}"),q=q_, type="step")
+# df_V_G_step_4
 
 ### get V_G(x) for G curve function 
 get_df_V_G_Scurve <- function(a,b,surplus=FALSE) {
   get_df_V_G_QB(
     G_func=G_Scurve_func(a,b),
     desc = betaCdfStr(a,b),
-    surplus = surplus
+    surplus = surplus,
+    type="s"
   )
 }
-df_V_G_Scurve_1 = get_df_V_G_Scurve(a=6, b=35)
+# df_V_G_Scurve_1 = get_df_V_G_Scurve(a=6, b=35)
+df_V_G_Scurve_1 = get_df_V_G_Scurve(a=6, b=55)
 df_V_G_Scurve_1
-df_V_G_Scurve_2 = get_df_V_G_Scurve(a=5, b=60)
+# df_V_G_Scurve_2 = get_df_V_G_Scurve(a=5, b=60)
+df_V_G_Scurve_2 = get_df_V_G_Scurve(a=8, b=35)
 df_V_G_Scurve_2
 
 ### visualize V_G(x)
-df_jj_1 = df_jj %>% rename(V_G1 = jj_v1) %>% mutate(desc = "Jimmy Johnson")
+# df_jj_1 = df_jj %>% rename(V_G1 = jj_v1) %>% mutate(desc = "Jimmy Johnson")
 df_plot_V_G = 
   bind_rows(
+    df_V_G_step_0,
     df_V_G_step_1,
     df_V_G_step_2,
     df_V_G_step_3,
-    df_V_G_Scurve_1,
-    df_V_G_Scurve_2,
+    # df_V_G_step_4,
+    # df_V_G_id,
+    # df_V_G_Scurve_1,
+    # df_V_G_Scurve_2,
     # bind_rows(df_trade_market_weibull %>% mutate(QB="QB"), df_trade_market_weibull %>% mutate(QB="not QB")),
     # bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
-    bind_rows(df_jj_1 %>% mutate(QB="QB")),
-    df_V_G_id
+    # bind_rows(df_jj_1 %>% mutate(QB="QB")),
+    df_V_G_id %>% mutate(desc="expected\nperformance\nvalue"),
   ) #%>% select(-V_G) 
 df_plot_V_G
 
 ###
 plot_VG = 
   df_plot_V_G %>%
-  # filter(draft_pick < 255) %>%
-  ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
-  # ggplot(aes(x=draft_pick, y = V_G, color=desc)) +
+  
+  # group_by(desc,QB) %>%
+  # mutate(V_G1 = V_G1/first(V_G1)) %>%
+  # ungroup() %>%
+  
+  mutate(q1 = percent(q,pd_)) %>%
+  ggplot(aes(x=draft_pick, y = V_G1, color=factor(q1))) +
   facet_wrap(~QB) +
-  geom_line(linewidth=2) +
-  scale_color_brewer(name="E[g(Y)|x,pos]/E[g(Y)|x=1,qb]", palette = "Set2") +
-  # scale_color_brewer(name=bquote(paste('v'['g']*'(x) = E[g(Y)|x]')), palette = "Set2") +
-  xlab("draft pick") +
+  
+  # geom_line(linewidth=2, aes(color=desc), linetype="dashed", data = . %>% filter(type=="s")) +
+  # geom_line(linewidth=2, aes(color=desc), linetype="dotted", data = . %>% filter(type=="linear")) +
+  # geom_line(linewidth=2, aes(color=desc), linetype="solid", data = . %>% filter(type=="step")) +
+  # scale_color_brewer(name="", palette = "Set1") +
+  
+  geom_line(linewidth=2, data = . %>% filter(!is.na(q))) +
+  geom_line(linewidth=2, color="black", aes(linetype=desc), data = . %>% filter(is.na(q)) ) +
+  scale_linetype_manual(name="", values = c(
+    "longdash", "solid"
+  )) +
+  
+  scale_color_brewer(name="eliteness cutoff\n(percent of cap)", palette = "Set1", na.translate=F) +
   ylab("value relative to first QB pick") +
+  xlab("draft pick") +
+  theme(legend.key.width=unit(2.5,"cm")) +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_VG
-ggsave("plots_byPos/plot_G_valueCurves_byQB.png",width=15,height=5)
+ggsave("plots_byPos/plot_G_valueCurves_byQB.png",width=11, height=4)
 
 ###########################################
 ### Accounting for cost: surplus curves ###
@@ -735,54 +827,132 @@ df_V_G_id_S = get_df_V_G_QB(G_func=function(y) { y }, desc=paste0("g(y) = y"), s
 df_V_G_id_S
 
 ### get V_G(x) for step function G(y) = 1{y>r}
-q_ = 0.1
-df_V_G_step_1_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE)
+pd_ = 1
+# q_ = 0.05
+q_ = 0.075
+df_V_G_step_0_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE, q=q_)
+df_V_G_step_0_S
+# q_ = 0.0833333
+q_ = 0.10
+df_V_G_step_1_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE, q=q_)
 df_V_G_step_1_S
-q_ = 0.15
-df_V_G_step_2_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE)
+# q_ = 0.1166666667
+q_ = 0.125
+df_V_G_step_2_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE, q=q_)
 df_V_G_step_2_S
-q_ = 0.2
-df_V_G_step_3_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE)
+q_ = 0.15
+df_V_G_step_3_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE, q=q_)
 df_V_G_step_3_S
+# q_ = 0.20
+# df_V_G_step_4_S = get_df_V_G_QB(G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus=TRUE, q=q_)
+# df_V_G_step_4_S
 
 ### get V_G(x) for G curve function 
-df_V_G_Scurve_1_S = get_df_V_G_Scurve(a=6, b=35, surplus=TRUE)
+# df_V_G_Scurve_1_S = get_df_V_G_Scurve(a=6, b=35, surplus=TRUE)
+df_V_G_Scurve_1_S = get_df_V_G_Scurve(a=6, b=55, surplus=TRUE)
 df_V_G_Scurve_1_S
-df_V_G_Scurve_2_S = get_df_V_G_Scurve(a=5, b=60, surplus=TRUE)
+# df_V_G_Scurve_2_S = get_df_V_G_Scurve(a=5, b=60, surplus=TRUE)
+df_V_G_Scurve_2_S = get_df_V_G_Scurve(a=8, b=35, surplus=TRUE)
 df_V_G_Scurve_2_S
 
-### visualize SV_G(x)
-df_plot_SV_G = 
+# ### visualize SV_G(x)
+# df_plot_SV_G = 
+#   bind_rows(
+#     df_V_G_step_1_S,
+#     df_V_G_step_2_S,
+#     df_V_G_step_3_S,
+#     df_V_G_Scurve_1_S,
+#     df_V_G_Scurve_2_S,
+#     # bind_rows(df_trade_market_weibull %>% mutate(QB="QB"), df_trade_market_weibull %>% mutate(QB="not QB")),
+#     # bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
+#     bind_rows(df_jj_1 %>% mutate(QB="QB")),
+#     df_V_G_id_S
+#   ) #%>% select(-V_G) 
+# df_plot_SV_G
+# 
+# ###
+# plot_SVG = 
+#   df_plot_SV_G %>%
+#   ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
+#   # ggplot(aes(x=draft_pick, y = V_G, color=desc)) +
+#   facet_wrap(~QB) +
+#   geom_line(linewidth=2) +
+#   scale_color_brewer(name="E[g(S)|x,pos]/E[g(S)|x=1,qb]", palette = "Set2") +
+#   # scale_color_brewer(name=bquote(paste('sv'['g']*'(x) = E[G(Y-cost)|x]')), palette = "Set2") +
+#   xlab("draft pick") +
+#   ylab("surplus value relative to first QB pick") +
+#   # scale_y_continuous(limits=c(0,1)) +
+#   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# # plot_SVG
+# ggsave("plots_byPos/plot_G_surplusValueCurves_byQB.png",width=15,height=5)
+
+
+### for CMSAC24 slides
+df_plot_SV_G_2A = 
   bind_rows(
+    df_V_G_id_S %>% mutate(desc = "expected\nsurplus\nvalue"),
+    df_V_G_step_0_S,
     df_V_G_step_1_S,
     df_V_G_step_2_S,
     df_V_G_step_3_S,
-    df_V_G_Scurve_1_S,
-    df_V_G_Scurve_2_S,
-    # bind_rows(df_trade_market_weibull %>% mutate(QB="QB"), df_trade_market_weibull %>% mutate(QB="not QB")),
-    # bind_rows(df_jj_1 %>% mutate(QB="QB"), df_jj_1 %>% mutate(QB="not QB")),
-    bind_rows(df_jj_1 %>% mutate(QB="QB")),
-    df_V_G_id_S
-  ) #%>% select(-V_G) 
-df_plot_SV_G
-
-###
-plot_SVG = 
-  df_plot_SV_G %>%
-  ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
-  # ggplot(aes(x=draft_pick, y = V_G, color=desc)) +
+  ) 
+df_plot_SV_G_2A
+plot_SVG_2A = 
+  df_plot_SV_G_2A %>%
+  mutate(q1 = percent(q,pd_)) %>%
+  ggplot(aes(x=draft_pick, y = V_G1, color=factor(q1))) +
   facet_wrap(~QB) +
-  geom_line(linewidth=2) +
-  scale_color_brewer(name="E[g(S)|x,pos]/E[g(S)|x=1,qb]", palette = "Set2") +
-  # scale_color_brewer(name=bquote(paste('sv'['g']*'(x) = E[G(Y-cost)|x]')), palette = "Set2") +
+  geom_hline(yintercept=1, linetype="dashed", color="gray60", linewidth=1) +
+  geom_hline(yintercept=0, linetype="dashed", color="gray60", linewidth=1) +
+  geom_line(linewidth=2, data = . %>% filter(!is.na(q))) +
+  geom_line(linewidth=2, color="black", aes(linetype=desc), data = . %>% filter(is.na(q)) ) +
+  scale_linetype_manual(name="", values = c(
+    "longdash", "solid"
+  )) +
+  scale_color_brewer(name="eliteness cutoff\n(percent of cap)", palette = "Set1", na.translate=F) +
+  ylab("value relative to first QB pick") +
   xlab("draft pick") +
-  ylab("surplus value relative to first QB pick") +
-  # scale_y_continuous(limits=c(0,1)) +
+  theme(legend.key.width=unit(2.5,"cm")) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
-# plot_SVG
-ggsave("plots_byPos/plot_G_surplusValueCurves_byQB.png",width=15,height=5)
+# plot_SVG_2A
+ggsave("plots_byPos/plot_G_surplusValueCurves_byQB.png",width=11,height=4)
 
 
-
-
+# df_plot_SV_G_2B =
+#   bind_rows(
+#     df_V_G_id_S %>% mutate(
+#       desc = "expected surplus value\nv(x,pos) ~ E(Y - cost(x)|x,pos)\n", a=1,
+#     ),
+#     df_V_G_step_025_S %>% mutate(
+#       desc = "v(x,pos) ~ P(Y - cost(x) > 0.025|x,pos)", a=2,
+#     ),
+#     df_V_G_step_05_S %>% mutate(
+#       desc = "v(x,pos) ~ P(Y - cost(x) > 0.05|x,pos)", a=3,
+#     ),
+#     df_V_G_step_1_S %>% mutate(
+#       desc = "v(x,pos) ~ P(Y - cost(x) > 0.10|x,pos)", a=4,
+#     ),
+#     df_V_G_step_2_S %>% mutate(
+#       desc = "v(x,pos) ~ P(Y - cost(x) > 0.15|x,pos)", a=5,
+#     ),
+#     # bind_rows(df_trade_market_weibull %>% mutate(QB="QB"), df_trade_market_weibull %>% mutate(QB="not QB")),
+#   ) 
+# df_plot_SV_G_2B
+# plot_SVG_2B = 
+#   df_plot_SV_G_2B %>%
+#   # ggplot(aes(x=draft_pick, y = V_G1, color=desc)) +
+#   ggplot(aes(x=draft_pick, y = V_G1, color=reorder(desc, a))) +
+#   facet_wrap(~QB) +
+#   geom_hline(yintercept=1, linetype="dashed", color="gray60", linewidth=1) +
+#   geom_hline(yintercept=0, linetype="dashed", color="gray60", linewidth=1) +
+#   geom_line(linewidth=2) +
+#   scale_color_brewer(
+#     name="",
+#     palette = "Set1"
+#   ) +
+#   xlab("draft pick") +
+#   ylab("surplus value relative to first QB pick") +
+#   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# # plot_SVG_2B
+# ggsave("plots_byPos/plot_G_surplusValueCurves_byQB_2B.png",width=15,height=5)
 

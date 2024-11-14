@@ -1,6 +1,7 @@
 
 ### spike / bust cutoff
-bust_cutoff = 0.01
+# bust_cutoff = 0.01
+bust_cutoff = 0.005
 
 ##################
 ### load stuff ###
@@ -14,6 +15,7 @@ library(tidyverse)
 library(splines)
 library(RColorBrewer)
 library(betareg)
+library(formattable)
 
 ### plotting pre-sets
 theme_set(theme_bw())
@@ -306,6 +308,33 @@ df_trade_market_weibull =
   select(draft_pick, V_G1) %>%
   mutate(desc = "Weibull")
 print(df_trade_market_weibull)
+
+####################################
+### Replicate Massey Thaler 2013 ###
+####################################
+
+players_2C %>%
+  left_join(compensation_1C) %>%
+  select(draft_pick, apy_cap_pct_2C, rookie_contract_cap_pct, compensation_v1)
+
+EV_model = lm(data=players_2C, apy_cap_pct_2C~bs(draft_pick,df=5))
+EV_model
+
+df_plot_Massey_Thaler_0 = 
+  tibble(draft_pick = 1:256) %>%
+  left_join(compensation_1C) %>%
+  mutate(
+    compensation0 = rookie_contract_cap_pct,
+    performance0 = predict(EV_model, .),
+    surplus0 = performance0 - rookie_contract_cap_pct,
+    compensation = compensation0/first(compensation0),
+    performance = performance0/first(performance0),
+    surplus = surplus0/first(surplus0),
+  ) %>%
+  select(draft_pick,performance,compensation,surplus)
+df_plot_Massey_Thaler_0
+
+
 
 
 

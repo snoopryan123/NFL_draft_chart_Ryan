@@ -6,30 +6,42 @@ source("A2ndContract1_Header.R")
 ### Replicate Massey Thaler 2013 ###
 ####################################
 
-players_2C %>%
-  left_join(compensation_1C) %>%
-  select(draft_pick, apy_cap_pct_2C, rookie_contract_cap_pct, compensation_v1)
-
-EV_model = lm(data=players_2C, apy_cap_pct_2C~bs(draft_pick,df=5))
-EV_model
-
 df_plot_Massey_Thaler = 
-  tibble(draft_pick = 1:256) %>%
-  left_join(compensation_1C) %>%
-  mutate(
-    compensation0 = rookie_contract_cap_pct,
-    performance0 = predict(EV_model, .),
-    surplus0 = performance0 - rookie_contract_cap_pct,
-    compensation = compensation0/first(compensation0),
-    performance = performance0/first(performance0),
-    surplus = surplus0/first(surplus0),
-  ) %>%
-  select(draft_pick,performance,compensation,surplus) %>%
+  df_plot_Massey_Thaler_0 %>%
   rename(
-    `performance\n(predicted\nsecond contract\ncompensation)\n` = performance,
-    `first contract\ncompensation\n` = compensation,
+    `cost\n` = compensation,
+    # `expected performance\n` = performance,
+    # `expected performance\nminus cost\n`=surplus,
+    `expected\nperformance\n` = performance,
+    `expected\nsurplus\n`=surplus,
   ) 
-df_plot_Massey_Thaler
+
+# players_2C %>%
+#   left_join(compensation_1C) %>%
+#   select(draft_pick, apy_cap_pct_2C, rookie_contract_cap_pct, compensation_v1)
+# 
+# EV_model = lm(data=players_2C, apy_cap_pct_2C~bs(draft_pick,df=5))
+# EV_model
+# 
+# df_plot_Massey_Thaler = 
+#   tibble(draft_pick = 1:256) %>%
+#   left_join(compensation_1C) %>%
+#   mutate(
+#     compensation0 = rookie_contract_cap_pct,
+#     performance0 = predict(EV_model, .),
+#     surplus0 = performance0 - rookie_contract_cap_pct,
+#     compensation = compensation0/first(compensation0),
+#     performance = performance0/first(performance0),
+#     surplus = surplus0/first(surplus0),
+#   ) %>%
+#   select(draft_pick,performance,compensation,surplus) %>%
+#   rename(
+#     `cost\n` = compensation,
+#     `expected performance\n` = performance,
+#     `expected performance\nminus cost\n`=surplus,
+#     # `expected\nsurplus\n`=surplus,
+#   ) 
+# df_plot_Massey_Thaler
 
 plot_Massey_Thaler = 
   df_plot_Massey_Thaler %>%
@@ -37,28 +49,60 @@ plot_Massey_Thaler =
   ggplot(aes(x=draft_pick,y=value,color=name)) +
   geom_line(linewidth=2) +
   xlab("draft pick") +
-  labs(title="Massey Thaler Curves") +
   scale_color_manual(name="", values=c("firebrick", "dodgerblue2", "forestgreen")) +
   ylab("value relative to first pick") +
-  # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_Massey_Thaler
-ggsave("plots_ReplicateAndEDA/plot_Massey_Thaler_replication.png", width=9, height=5)
+# ggsave("plots_ReplicateAndEDA/plot_Massey_Thaler_replication_1A.png", width=9, height=5)
 
 plot_Massey_Thaler_1 = 
-  df_plot_Massey_Thaler_1 %>%
+  # df_plot_Massey_Thaler_1 %>%
+  df_plot_Massey_Thaler %>%
   left_join(df_jj %>% select(-value_jj) %>% rename(`Jimmy Johnson\n` = jj_v1)) %>%
   left_join(df_trade_market_weibull %>% rename(`Weibull`=V_G1) %>% select(-desc)) %>%
   pivot_longer(-draft_pick) %>%
   ggplot(aes(x=draft_pick,y=value,color=name)) +
   geom_line(linewidth=2) +
   xlab("draft pick") +
-  labs(title="Massey Thaler Curves") +
   scale_color_manual(name="", values=c("firebrick", "violet", "dodgerblue2", "forestgreen",  "orange")) +
   ylab("value relative to first pick") +
   # labs(title = "posterior mean relative EV \U03BC(x)/\U03BC(x=1)") +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
-ggsave("plots_ReplicateAndEDA/plot_Massey_Thaler_replication_1.png", width=9, height=5)
+# plot_Massey_Thaler_1
+# ggsave("plots_ReplicateAndEDA/plot_Massey_Thaler_replication_1B.png", width=9, height=5)
+
+### FOR CMSAC24 SLIDES / THE PAPER:
+plot_Massey_Thaler_2B = 
+  df_plot_Massey_Thaler %>%
+  left_join(df_jj %>% select(-value_jj) %>% rename(`Jimmy\nJohnson\n` = jj_v1)) %>%
+  # left_join(df_trade_market_weibull %>% rename(`fitted trade market\n(Massey Thaler)\n`=V_G1) %>% select(-desc)) %>%
+  left_join(df_trade_market_weibull %>% rename(`fitted\ntrade\nmarket\n`=V_G1) %>% select(-desc)) %>%
+  pivot_longer(-draft_pick) %>%
+  mutate(
+    ordering = case_when(
+      str_detect(name, "cost") ~ 2,
+      # str_detect(name, "minus") ~ 3,
+      str_detect(name, "surplus") ~ 3,
+      str_detect(name, "perf") ~ 1,
+      str_detect(name, "trade") ~ 4,
+      str_detect(name, "Jimmy") ~ 5,
+      TRUE ~ 6,
+    ),
+  ) %>%
+  ggplot(aes(x=draft_pick,y=value,color=fct_reorder(name,ordering))) +
+  # ggplot(aes(x=draft_pick,y=value,color=name)) +
+  geom_hline(yintercept=1, linetype="dashed", color="gray60", linewidth=1) +
+  geom_hline(yintercept=0, linetype="dashed", color="gray60", linewidth=1) +
+  geom_line(linewidth=2) +
+  xlab("draft pick") +
+  scale_color_manual(name="", values=c(
+    "dodgerblue2","firebrick","forestgreen", "orange", "violet"
+  )) +
+  ylab("value relative to first pick") +
+  # labs(title = "fit from data from 2013-2023") +
+  scale_x_continuous(breaks=seq(1,32*9,by=32*2))
+# plot_Massey_Thaler_2B
+ggsave("plots_ReplicateAndEDA/plot_Massey_Thaler_replication.png", width=8, height=4.5)
 
 #####################################
 ### Performance value by position ###
