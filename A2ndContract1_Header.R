@@ -15,7 +15,9 @@ library(tidyverse)
 library(splines)
 library(RColorBrewer)
 library(betareg)
+library(scales)
 library(formattable)
+library(ggpubr)
 
 ### plotting pre-sets
 theme_set(theme_bw())
@@ -29,6 +31,13 @@ theme_update(
   legend.title = element_text(size=20),
   panel.spacing = unit(2, "lines")
 ) 
+
+### color palettes
+my_palette_1 = brewer.pal(n = 9, "PuRd")[c(3,4,5,6)]
+
+# display.brewer.all(n=11)
+# my_palette_11 <- brewer.pal(11, "Paired")  # Change "Paired" to another if needed
+# print(my_palette_11)
 
 ################################
 ### Get second contract data ###
@@ -334,7 +343,31 @@ df_plot_Massey_Thaler_0 =
   select(draft_pick,performance,compensation,surplus)
 df_plot_Massey_Thaler_0
 
+##############
+### q_grid ###
+##############
 
+### choosing right tail cutoff values r
+qbs_2C = players_2C %>% filter(pos == "QB")
+qbs_2C
+# qbs_2C$apy_cap_pct_2C
+# hist(qbs_2C$apy_cap_pct_2C, breaks=30)
+# percent(quantile(qbs_2C$apy_cap_pct_2C, probs = seq(0.75,1,by=0.01)))
+# percent(quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.85, 0.875, 0.9, 0.95)))
 
+q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.85, 0.875, 0.9, 0.95))
+# q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.875, 0.9, 0.95))
+# q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.875, 0.9125, 0.95))
+q_grid
+q_grid_str = percent(unname(q_grid))
+q_grid_str
+perc_digits = 1
 
+round(mean(players_2C$apy_cap_pct_2C <= q_grid[1]), 3)
+round(mean(players_2C$apy_cap_pct_2C <= q_grid[2]), 3)
+round(mean(players_2C$apy_cap_pct_2C <= q_grid[3]), 3)
+round(mean(players_2C$apy_cap_pct_2C <= q_grid[4]), 3)
 
+# q_grid = c(seq(0.075, 0.15, length.out=4))
+# q_grid
+# perc_digits = 1
