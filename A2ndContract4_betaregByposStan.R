@@ -771,6 +771,20 @@ if (fit_func_4) {
 }
 df_V_G_step_4
 
+filename_func_5 = "plots_byPos/df_V_G_step_5.csv"
+fit_func_5 = !file.exists(filename_func_5) | OVERWRITE | !USE_SAVED_COMPUTATIONS
+if (fit_func_5) {
+  # q_ = 0.15
+  q_ = q_grid[5]
+  df_V_G_step_5 = get_df_V_G_QB(
+    G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",formattable::percent(q_,pd_),"}"),q=q_, type="step"
+  )
+  write_csv(df_V_G_step_5, filename_func_5)
+} else {
+  df_V_G_step_5 = read_csv(filename_func_5)
+}
+df_V_G_step_5
+
 filename_func_id = "plots_byPos/df_V_G_step_id.csv"
 fit_func_id = !file.exists(filename_func_id) | OVERWRITE | !USE_SAVED_COMPUTATIONS
 if (fit_func_id) {
@@ -788,6 +802,7 @@ plot_VG =
     df_V_G_step_2,
     df_V_G_step_3,
     df_V_G_step_4,
+    df_V_G_step_5,
     df_V_G_id %>% mutate(desc="Expected\nperformance\nvalue"),
   ) %>% 
   mutate(q1 = formattable::percent(q,pd_)) %>%
@@ -910,6 +925,20 @@ if (fit_func_4) {
 }
 df_V_G_step_4_S
 
+filename_func_5 = "plots_byPos/df_V_G_step_5_S.csv"
+fit_func_5 = !file.exists(filename_func_5) | OVERWRITE | !USE_SAVED_COMPUTATIONS
+if (fit_func_5) {
+  # q_ = 0.15
+  q_ = q_grid[5]
+  df_V_G_step_5_S = get_df_V_G_QB(
+    G_func=G_step_func(q=q_), surplus = T, desc=paste0("g(y) = 1{y>",formattable::percent(q_,pd_),"}"),q=q_, type="step"
+  )
+  write_csv(df_V_G_step_5_S, filename_func_5)
+} else {
+  df_V_G_step_5_S = read_csv(filename_func_5)
+}
+df_V_G_step_5_S
+
 filename_func_id = "plots_byPos/df_V_G_step_id_S.csv"
 fit_func_id = !file.exists(filename_func_id) | OVERWRITE | !USE_SAVED_COMPUTATIONS
 if (fit_func_id) {
@@ -927,6 +956,7 @@ plot_VG_S =
     df_V_G_step_2_S,
     df_V_G_step_3_S,
     df_V_G_step_4_S,
+    df_V_G_step_5_S,
     df_V_G_id_S %>% mutate(desc="Expected\nsurplus\nvalue"),
   ) %>% 
   mutate(q1 = formattable::percent(q,pd_)) %>%

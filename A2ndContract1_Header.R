@@ -343,31 +343,89 @@ df_plot_Massey_Thaler_0 =
   select(draft_pick,performance,compensation,surplus)
 df_plot_Massey_Thaler_0
 
-##############
-### q_grid ###
-##############
+###################################################
+### q_grid: choosing right tail cutoff values r ###
+###################################################
 
-### choosing right tail cutoff values r
-qbs_2C = players_2C %>% filter(pos == "QB")
-qbs_2C
-# qbs_2C$apy_cap_pct_2C
-# hist(qbs_2C$apy_cap_pct_2C, breaks=30)
-# percent(quantile(qbs_2C$apy_cap_pct_2C, probs = seq(0.75,1,by=0.01)))
-# percent(quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.85, 0.875, 0.9, 0.95)))
+### QB's whose second contract is at least 2 years
+qbs_longerContract = players_2C %>% filter(pos == "QB" & years >= 2) %>% arrange(-apy_cap_pct_2C)
+qbs_longerContract
+dim(qbs_longerContract)
+# View(qbs_longerContract)
 
-q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.85, 0.875, 0.9, 0.95))
-# q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.875, 0.9, 0.95))
-# q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.875, 0.9125, 0.95))
+### which QB has the highest performance value?
+q_Burrow = (qbs_longerContract %>% filter(player == "Joe Burrow"))$apy_cap_pct_2C
+q_Burrow
+### which regularly starting QB has the lowest performance value?
+q_Carr = (qbs_longerContract %>% filter(player == "Derek Carr"))$apy_cap_pct_2C
+q_Carr
+### which QB is halfway between those two extremes?
+q_halfwayCarrBurrow = q_Carr + (q_Burrow - q_Carr)/2
+q_halfwayCarrBurrow
+qbs_longerContract %>% 
+  mutate(d = abs(apy_cap_pct_2C - q_halfwayCarrBurrow)) %>% 
+  arrange(d) %>%
+  relocate(d, .before = apy_cap_pct_2C)
+q_Goff = (qbs_longerContract %>% filter(player == "Jared Goff"))$apy_cap_pct_2C
+q_Goff
+# q_Watson = (qbs_longerContract %>% filter(player == "Deshaun Watson"))$apy_cap_pct_2C
+# q_Watson
+
+### non QB's whose second contract is at least 2 years
+nonqbs_longerContract = players_2C %>% filter(pos != "QB" & years >= 2) %>% arrange(-apy_cap_pct_2C)
+quantile(nonqbs_longerContract$apy_cap_pct_2C, c(0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99, 1))
+### which regularly starting non QBs has 95th quantile performance value?
+qA = quantile(nonqbs_longerContract$apy_cap_pct_2C, c(0.95))
+qA
+nonqbs_longerContract %>% 
+  mutate(d = abs(apy_cap_pct_2C - qA)) %>% 
+  arrange(d) %>%
+  relocate(d, .before = apy_cap_pct_2C)
+q_White = (nonqbs_longerContract %>% filter(player == "Tre'Davious White"))$apy_cap_pct_2C
+q_White
+### which regularly starting non QBs has 99th quantile performance value?
+qB = quantile(nonqbs_longerContract$apy_cap_pct_2C, c(0.99))
+qB
+nonqbs_longerContract %>% 
+  mutate(d = abs(apy_cap_pct_2C - qB)) %>% 
+  arrange(d) %>%
+  relocate(d, .before = apy_cap_pct_2C)
+q_Sewell = (nonqbs_longerContract %>% filter(player == "Penei Sewell"))$apy_cap_pct_2C
+q_Sewell
+
+### q_grid
+q_grid = c(q_White, q_Sewell, q_Carr, q_Goff, q_Burrow)
 q_grid
-q_grid_str = percent(unname(q_grid))
-q_grid_str
 perc_digits = 1
 
-round(mean(players_2C$apy_cap_pct_2C <= q_grid[1]), 3)
-round(mean(players_2C$apy_cap_pct_2C <= q_grid[2]), 3)
-round(mean(players_2C$apy_cap_pct_2C <= q_grid[3]), 3)
-round(mean(players_2C$apy_cap_pct_2C <= q_grid[4]), 3)
-
-# q_grid = c(seq(0.075, 0.15, length.out=4))
+# ### choosing right tail cutoff values r
+# qbs_2C = players_2C %>% filter(pos == "QB")
+# qbs_2C
+# # qbs_2C$apy_cap_pct_2C
+# # hist(qbs_2C$apy_cap_pct_2C, breaks=30)
+# # percent(quantile(qbs_2C$apy_cap_pct_2C, probs = seq(0.75,1,by=0.01)))
+# # percent(quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.85, 0.875, 0.9, 0.95)))
+# 
+# q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.85, 0.875, 0.9, 0.95))
+# # q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.875, 0.9, 0.95))
+# # q_grid = quantile(qbs_2C$apy_cap_pct_2C, probs = c(0.875, 0.9125, 0.95))
 # q_grid
+# q_grid_str = percent(unname(q_grid))
+# q_grid_str
 # perc_digits = 1
+# 
+# round(mean(players_2C$apy_cap_pct_2C <= q_grid[1]), 3)
+# round(mean(players_2C$apy_cap_pct_2C <= q_grid[2]), 3)
+# round(mean(players_2C$apy_cap_pct_2C <= q_grid[3]), 3)
+# round(mean(players_2C$apy_cap_pct_2C <= q_grid[4]), 3)
+# 
+# # q_grid = c(seq(0.075, 0.15, length.out=4))
+# # q_grid
+# # perc_digits = 1
+# 
+# ### which QBs are actually at these quantiles?
+# for (j in 1:4) {
+#   print(q_grid[j])
+#   print(qbs_2C %>% arrange(-apy_cap_pct_2C) %>% filter(apy_cap_pct_2C >= q_grid[j]) %>% tail())
+# }
+

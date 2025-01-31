@@ -510,8 +510,6 @@ plot_func_betareg_overall_density(seq(1,64*2,by=32/4),F,T,T)
 ### tail probability P(y>r|x) draft value curves  ###
 #####################################################
 
-
-
 ### posterior summary of tail probability
 get_tail_prob_df <- function(q) {
   print(paste0("computing tail prob for q=",q))
@@ -579,7 +577,7 @@ df_post_summary_tail_prob_1 =
 df_post_summary_tail_prob_1
 
 plot_tail_probs_labels = c(
-  "right_tail_prob" = "Right\ntail\nprobability\n",
+  "right_tail_prob" = "Right\ntail\nprobability",
   "performance" = "Expected\nperformance\nvalue",
   "market" = "Fitted\ntrade\nmarket\n"
 )
@@ -616,20 +614,23 @@ plot_tail_probs_relative_2_SE =
   theme(
     legend.text = element_text(size=16),
     legend.title = element_text(size=16),
+    # legend.spacing.y = unit(0, "pt"),
+    legend.spacing.y = unit(0, "lines"),
+    legend.margin = margin(0, 0, 0, 0),
   ) +
   scale_x_continuous(breaks=seq(1,32*9,by=32*2))
 # plot_tail_probs_relative_2_SE
 ggsave("plots_overall/plot_tail_probs_relative_SE.png",
-       plot_tail_probs_relative_2_SE, width=8, height=4)
+       plot_tail_probs_relative_2_SE, width=8, height=4.5)
 
-temp = 
-  players_2C %>%
-  filter(position =="QB") %>%
-  arrange(-apy_cap_pct_2C) 
-temp
-
-players_2C %>% filter(apy_cap_pct_2C >= 0.15) %>% mutate(n())
-16/nrow(players_2C)
+# temp = 
+#   players_2C %>%
+#   filter(position =="QB") %>%
+#   arrange(-apy_cap_pct_2C) 
+# temp
+# 
+# players_2C %>% filter(apy_cap_pct_2C >= 0.15) %>% mutate(n())
+# 16/nrow(players_2C)
 
 ##############################
 ### Surplus density curves ###
@@ -656,22 +657,23 @@ df_post_summary_density_surplus
 ### plot posterior conditional surplus density
 plot_post_surplus_density_full_rd1 = 
   df_post_summary_density_surplus %>%
-  filter(draft_pick %in% c(1,5,9,17,33)) %>%
+  # filter(draft_pick %in% c(1,5,9,17,33)) %>%
+  filter(draft_pick %in% c(1,9,17)) %>%
   # filter(draft_pick %in% c(1,5,9,seq(17,33,by=8))) %>%
   # filter(draft_pick %in% c(seq(1,33,by=4))) %>%
   # filter(draft_pick %in% c(seq(1,32,by=8))) %>%
   ggplot(aes(x=s, 
              color=fct_reorder(factor(draft_pick), -draft_pick),
-             # fill=fct_reorder(factor(draft_pick), -draft_pick)
+             fill=fct_reorder(factor(draft_pick), -draft_pick)
              )
   ) +
   geom_vline(xintercept = 0, color = "gray70", linetype="dashed", linewidth=1) +
-  # geom_ribbon(aes(ymin = density_times_bp_L, ymax=density_times_bp_U), alpha = 0.35) +
+  geom_ribbon(aes(ymin = density_times_bp_L, ymax=density_times_bp_U), alpha = 0.35) +
   geom_line(aes(y=density_times_bp_M), linewidth=1) +
   xlab("Percentage of cap") +
   ylab("Density") +
   scale_color_brewer(name="Draft\nposition", palette = "Set1", direction=-1) +
-  # scale_color_discrete(name = "Draft\nposition") +
+  scale_fill_brewer(name="Draft\nposition", palette = "Set1", direction=-1) +
   scale_x_continuous(labels = percent_format()) +
   theme(
     axis.text.y=element_blank(),
@@ -682,6 +684,7 @@ ggsave("plots_overall/plot_post_surplus_density_full_rd1.png", width=7, height=4
 
 plot_post_surplus_density_full_rdsall = 
   df_post_summary_density_surplus %>%
+  # filter(draft_pick %in% c(1,9,17,seq(33,32*7,by=32/1))) %>%
   filter(draft_pick %in% c(seq(1,32*7,by=32/1))) %>%
   ggplot(aes(x=s, 
              color=fct_reorder(factor(draft_pick), -draft_pick),
@@ -863,6 +866,11 @@ df_V_G_step_S4 = get_df_V_G(
   G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus = TRUE, q=q_
 )
 df_V_G_step_S4
+q_ = q_grid[5]
+df_V_G_step_S5 = get_df_V_G(
+  G_func=G_step_func(q=q_), desc=paste0("g(y) = 1{y>",q_,"}"), surplus = TRUE, q=q_
+)
+df_V_G_step_S5
 
 ### visualize 
 perc_digits_S = 1
@@ -876,6 +884,7 @@ df_plot_V_G_S_A_2A =
     df_V_G_step_S2,
     df_V_G_step_S3,
     df_V_G_step_S4,
+    df_V_G_step_S5,
   )
 # df_plot_V_G_S_A_2A
 plot_V_G_S_A_2A = 
