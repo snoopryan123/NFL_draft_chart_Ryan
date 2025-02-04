@@ -632,6 +632,40 @@ ggsave("plots_overall/plot_tail_probs_relative_SE.png",
 # players_2C %>% filter(apy_cap_pct_2C >= 0.15) %>% mutate(n())
 # 16/nrow(players_2C)
 
+#############################################################
+### which right tail curve best matches the trade market? ###
+#############################################################
+
+### distance (MAE) of the market curve to a given right tail probability curve
+dist_to_market <- function(
+    q, 
+    df_market = df_trade_market_weibull
+) {
+  v1_right_tail = get_tail_prob_df(q)$tail_prob_1_M
+  v1_market = df_market$V_G1
+  mean(abs(v1_right_tail - v1_market))
+}
+# ### check
+# dist_to_market(q = 0.15)
+
+### minimize 
+o = optim(par = 0.18, fn = dist_to_market, lower = 0.16, upper = 0.20)
+o$par
+# .197
+
+###
+# temp = players_2C %>% filter(position =="QB") %>% arrange(-apy_cap_pct_2C)
+qbs_longerContract_A = players_2C %>% filter(position =="QB" & years > 1) %>% arrange(-apy_cap_pct_2C)
+qbs_longerContract_A
+
+qbs_above_eliteness_threshold = qbs_longerContract_A %>% filter(apy_cap_pct_2C >= o$par) %>% mutate(n())
+qbs_above_eliteness_threshold
+nrow(qbs_above_eliteness_threshold)
+nrow(qbs_longerContract_A)
+nrow(qbs_above_eliteness_threshold)/nrow(qbs_longerContract_A)
+
+temp = qbs_longerContract_A %>% mutate(diff = abs(o$par -apy_cap_pct_2C)) %>% arrange(diff)
+
 ##############################
 ### Surplus density curves ###
 ##############################
