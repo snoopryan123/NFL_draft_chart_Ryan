@@ -62,6 +62,32 @@ plot_Massey_Thaler_2B =
 # plot_Massey_Thaler_2B
 ggsave("plots_ReplicateAndEDA/plot_Massey_Thaler_replicate.png", width=8, height=4)
 
+######################
+### Example trades ###
+######################
+
+ex_Dolphins_Raiders_2013 = 
+  df_plot_Massey_Thaler_0 %>%
+  filter(draft_pick %in% c(3,12,42))
+ex_Dolphins_Raiders_2013
+
+ex_Dolphins_Raiders_2013_D = ex_Dolphins_Raiders_2013 %>% filter(draft_pick %in% c(3)) %>% reframe(s=sum(surplus))
+ex_Dolphins_Raiders_2013_U = ex_Dolphins_Raiders_2013 %>% filter(draft_pick %in% c(12,42)) %>% reframe(s=sum(surplus))
+ex_Dolphins_Raiders_2013_D
+ex_Dolphins_Raiders_2013_U
+(ex_Dolphins_Raiders_2013_D$s - ex_Dolphins_Raiders_2013_U$s) / ex_Dolphins_Raiders_2013_U$s * 100
+
+ex_Rams_Titans_2016 = 
+  df_plot_Massey_Thaler_0 %>%
+  filter(draft_pick %in% c(1,113,177,15,43,45,76))
+ex_Rams_Titans_2016
+
+ex_Rams_Titans_2016_D = ex_Rams_Titans_2016 %>% filter(draft_pick %in% c(1,113,177)) %>% reframe(s=sum(surplus))
+ex_Rams_Titans_2016_U = ex_Rams_Titans_2016 %>% filter(draft_pick %in% c(15,43,45,76)) %>% reframe(s=sum(surplus))
+ex_Rams_Titans_2016_D
+ex_Rams_Titans_2016_U
+(ex_Rams_Titans_2016_D$s - ex_Rams_Titans_2016_U$s) / ex_Rams_Titans_2016_U$s * 100
+
 #####################################
 ### Performance value by position ###
 #####################################

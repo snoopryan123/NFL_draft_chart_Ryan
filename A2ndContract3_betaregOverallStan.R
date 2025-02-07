@@ -632,6 +632,36 @@ ggsave("plots_overall/plot_tail_probs_relative_SE.png",
 # players_2C %>% filter(apy_cap_pct_2C >= 0.15) %>% mutate(n())
 # 16/nrow(players_2C)
 
+######################
+### Example trades ###
+######################
+
+ex_Dolphins_Raiders_2013 = 
+  df_post_summary_tail_prob_1 %>%
+  arrange(abs(q - 0.178)) %>%
+  filter(draft_pick %in% c(3,12,42)) %>%
+  head(3)
+ex_Dolphins_Raiders_2013
+
+ex_Dolphins_Raiders_2013_D = ex_Dolphins_Raiders_2013 %>% filter(draft_pick %in% c(3)) %>% reframe(s=sum(v1))
+ex_Dolphins_Raiders_2013_U = ex_Dolphins_Raiders_2013 %>% filter(draft_pick %in% c(12,42)) %>% reframe(s=sum(v1))
+ex_Dolphins_Raiders_2013_D
+ex_Dolphins_Raiders_2013_U
+(ex_Dolphins_Raiders_2013_D$s - ex_Dolphins_Raiders_2013_U$s) / ex_Dolphins_Raiders_2013_U$s * 100
+
+ex_Rams_Titans_2016 = 
+  df_post_summary_tail_prob_1 %>%
+  arrange(abs(q - 0.178)) %>%
+  filter(draft_pick %in% c(1,113,177,15,43,45,76)) %>%
+  head(7)
+ex_Rams_Titans_2016
+
+ex_Rams_Titans_2016_D = ex_Rams_Titans_2016 %>% filter(draft_pick %in% c(1,113,177)) %>% reframe(s=sum(v1))
+ex_Rams_Titans_2016_U = ex_Rams_Titans_2016 %>% filter(draft_pick %in% c(15,43,45,76)) %>% reframe(s=sum(v1))
+ex_Rams_Titans_2016_D
+ex_Rams_Titans_2016_U
+(ex_Rams_Titans_2016_D$s - ex_Rams_Titans_2016_U$s) / ex_Rams_Titans_2016_U$s * 100
+
 #############################################################
 ### which right tail curve best matches the trade market? ###
 #############################################################

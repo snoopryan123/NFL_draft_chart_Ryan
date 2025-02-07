@@ -299,6 +299,17 @@ df_market_curves_OG =
   pivot_longer(-t, names_to="m", values_to="v")
 df_market_curves_OG
 
+# ### example trades
+# ex_Dolphins_Raiders_JJ = 
+#   df_market_curves_OG %>% 
+#   filter(str_detect(m, "1983")) %>%
+#   filter(t %in% c(3,12,42))
+# ex_Dolphins_Raiders_JJ
+#   
+# temp = df_market_curves_OG %>% filter(str_detect(m, "1983"))
+# temp
+# View(temp)
+
 #################
 ### Visualize ###
 #################
